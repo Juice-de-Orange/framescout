@@ -1,0 +1,60 @@
+# Merge into your Home Assistant configuration.yaml — `mqtt:` block.
+# After saving, run "Check Configuration" and reload MQTT.
+
+mqtt:
+  binary_sensor:
+    - name: "Wildlife detection"
+      unique_id: framescout_wildlife_detection
+      state_topic: "framescout/+/+/animal"
+      payload_on: "1"
+      value_template: "{{ value_json.schemaVersion | string }}"
+      off_delay: 60
+      device_class: motion
+      json_attributes_topic: "framescout/+/+/animal"
+      json_attributes_template: >-
+        {{ {
+          "observation_id":     value_json.observation.observationId,
+          "camera_id":          value_json.observation.cameraId,
+          "deployment_id":      value_json.observation.deploymentId,
+          "scientific_name":    value_json.observation.scientificName,
+          "confidence":         value_json.observation.classificationProbability,
+          "event_start":        value_json.observation.eventStart
+        } | to_json }}
+
+  sensor:
+    - name: "Last wildlife sighting"
+      unique_id: framescout_last_wildlife_sighting
+      state_topic: "framescout/+/+/animal"
+      value_template: >-
+        {{ value_json.observation.scientificName
+           if value_json.observation.scientificName is defined
+           else value_json.observation.observationType }}
+      json_attributes_topic: "framescout/+/+/animal"
+      json_attributes_template: >-
+        {{ {
+          "camera_id":   value_json.observation.cameraId,
+          "confidence":  value_json.observation.classificationProbability,
+          "captured_at": value_json.observation.eventStart
+        } | to_json }}
+      icon: mdi:paw
+
+# Example automation: chime when a deer is spotted at night.
+#
+# automation:
+#   - alias: "Deer at night — chime"
+#     trigger:
+#       - platform: mqtt
+#         topic: framescout/+/+/animal
+#     condition:
+#       - condition: template
+#         value_template: >-
+#           {{ trigger.payload_json.observation.scientificName
+#              in ['Capreolus capreolus', 'Cervus elaphus', 'Dama dama'] }}
+#       - condition: sun
+#         after: sunset
+#     action:
+#       - service: media_player.play_media
+#         target: { entity_id: media_player.kitchen }
+#         data:
+#           media_content_id: media-source://media_source/local/chime.mp3
+#           media_content_type: audio/mpeg

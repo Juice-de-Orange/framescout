@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=./config.schema.json
+
+framescout:
+  dataDir: /var/lib/framescout
+  metricsPort: 9090
+
+deployments:
+  - id: garden
+    cameras:
+      - id: front-yard
+
+sources:
+  - id: reolink-1
+    package: '@framescout/source-reolink-hub'
+    config:
+      baseUrl: http://192.0.2.50
+      username: admin
+      passwordEnv: REOLINK_PASSWORD
+      channels:
+        - { channel: 0, deploymentId: garden, cameraId: front-yard, aiOnly: true }
+      pollIntervalMs: 15000
+
+detectors:
+  - id: megadetector
+    package: '@framescout/detector-megadetector-http'
+    config:
+      endpoint: http://localhost:8001/detect
+      minConfidence: 0.4
+      skipFramesWithPersonAbove: 0.15
+
+sinks:
+  - id: home-assistant
+    package: '@framescout/sink-mqtt'
+    config:
+      brokerUrl: mqtt://homeassistant.local:1883
+      topicPattern: framescout/{deployment}/{camera}/{observationType}
+      qos: 1
+      usernameEnv: MQTT_USERNAME
+      passwordEnv: MQTT_PASSWORD

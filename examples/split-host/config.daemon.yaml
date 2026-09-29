@@ -1,0 +1,84 @@
+# yaml-language-server: $schema=./config.schema.json
+#
+# Split-host deployment — the DAEMON config (runs on the daemon host, always on).
+# Heavy inference is offloaded to the inference host (a CPU-only VPS, always on):
+#   - MegaDetector HTTP   → http://inference-host:8001  (localise + privacy gate)
+#   - your own classifier → http://inference-host:8002  (species + individual)
+# The main PC is only used to *train* the classifier (GPU), not to serve.
+#
+# See examples/split-host/README.md and docs/SPECIES-CLASSIFIER.md.
+
+framescout:
+  dataDir: /var/lib/framescout
+  metricsPort: 9090
+
+deployments:
+  - id: garden
+    location:
+      latitude: 47.0707
+      longitude: 12.6938
+    cameras:
+      - id: garage-east
+      - id: garage-west
+
+sources:
+  - id: reolink-1
+    package: '@framescout/source-reolink-hub'
+    topNFrames: 3
+    config:
+      baseUrl: http://192.0.2.50
+      username: admin
+      passwordEnv: REOLINK_PASSWORD
+      channels:
+        - { channel: 0, deploymentId: garden, cameraId: garage-east, aiOnly: true }
+        - { channel: 1, deploymentId: garden, cameraId: garage-west, aiOnly: true }
+      pollIntervalMs: 15000
+
+detectors:
+  # Stage 1 — localisation + person-privacy gate (self-hosted on the inference host).
+  - id: megadetector
+    package: '@framescout/detector-megadetector-http'
+    config:
+      endpoint: http://inference-host:8001/detect
+      apiKeyEnv: MEGADETECTOR_API_KEY
+      modelVersion: v6.0
+      minConfidence: 0.4
+      skipFramesWithPersonAbove: 0.15
+
+  # Stage 2 — YOUR fine-tuned classifier (species) + individual
+  # recognition, both from one HTTP call to the inference server. This
+  # replaces deepfaune-http + detector-individual-embed. No ONNX runtime
+  # runs on the daemon host — the embedding comes back from the inference host and is matched
+  # against local centroids.
+  - id: classify
+    package: '@framescout/detector-classify-http'
+    config:
+      endpoint: http://inference-host:8002/
+      apiKeyEnv: CLASSIFY_API_KEY
+      modelVersion: v1
+      minConfidence: 0.4
+      onlyForLabels: ['animal']        # MegaDetector's animal class
+      cropPadding: 0.1
+      individuals:
+        embeddingDim: 768              # must match the trained model
+        similarityThreshold: 0.75
+        backboneName: framescout-classifier-v1
+
+sinks:
+  # Byte-compatible with the legacy ingest endpoint (additive individualName).
+  - id: legacy-ingest
+    package: '@framescout/sink-http-multipart'
+    overflow:
+      policy: drop-oldest
+      queueSize: 64
+    config:
+      endpoint: https://ingest.example.com/api/ingest
+      bearerEnv: INGEST_BEARER_TOKEN
+      wireFormat: bulletin-v1
+      timeoutMs: 30000
+
+  - id: audit-log
+    package: '@framescout/sink-file-ndjson'
+    config:
+      path: /var/lib/framescout/audit
+      rotateLines: 1000

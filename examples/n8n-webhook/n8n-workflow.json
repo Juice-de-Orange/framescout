@@ -1,0 +1,91 @@
+{
+  "name": "Framescout wildlife notifications",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "framescout",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "framescout"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "schema-version",
+              "leftValue": "={{$json[\"body\"][\"schemaVersion\"]}}",
+              "rightValue": 1,
+              "operator": { "type": "number", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "validate",
+      "name": "Schema v1?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "notable",
+              "leftValue": "={{$json[\"body\"][\"observation\"][\"scientificName\"]}}",
+              "rightValue": "Capreolus capreolus,Cervus elaphus,Sus scrofa,Vulpes vulpes,Lynx lynx,Ursus arctos",
+              "operator": { "type": "string", "operation": "contains" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "notable-species",
+      "name": "Notable species?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 240]
+    },
+    {
+      "parameters": {
+        "responseBody": "={{ JSON.stringify({ ok: true, observationId: $json[\"body\"][\"observation\"][\"observationId\"] }) }}",
+        "options": { "responseHeaders": { "entries": [{ "name": "content-type", "value": "application/json" }] } }
+      },
+      "id": "respond",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "text": "🦊 *{{$json[\"body\"][\"observation\"][\"scientificName\"] || $json[\"body\"][\"observation\"][\"observationType\"]}}*\nCamera: {{$json[\"body\"][\"observation\"][\"cameraId\"]}}\nConfidence: {{($json[\"body\"][\"observation\"][\"classificationProbability\"] * 100).toFixed(0)}}%\nTime: {{$json[\"body\"][\"observation\"][\"eventStart\"]}}",
+        "additionalFields": {}
+      },
+      "id": "telegram",
+      "name": "Telegram (replace me)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [900, 200]
+    }
+  ],
+  "connections": {
+    "Webhook":           { "main": [[{ "node": "Schema v1?",        "type": "main", "index": 0 }]] },
+    "Schema v1?":        { "main": [[{ "node": "Notable species?", "type": "main", "index": 0 }], [{ "node": "Respond OK", "type": "main", "index": 0 }]] },
+    "Notable species?":  { "main": [[{ "node": "Telegram (replace me)", "type": "main", "index": 0 }], [{ "node": "Respond OK", "type": "main", "index": 0 }]] },
+    "Telegram (replace me)": { "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": {}
+}

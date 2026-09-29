@@ -1,0 +1,36 @@
+# Runs on the inference host (a CPU-only VPS, always on). The heavy inference services:
+#   - inference-server : your fine-tuned classifier (species + embedding)
+#   - megadetector     : localisation + the person class for the privacy
+#                        gate (bring your own MegaDetector HTTP image)
+# Both CPU. Port 8001/8002 are reached from the daemon host over the network — put
+# them behind a firewall / tailnet; the API keys are the only auth.
+services:
+  inference-server:
+    build: ../../services/inference-server
+    image: framescout-inference:latest
+    container_name: framescout-inference
+    restart: unless-stopped
+    environment:
+      MODEL_PATH: /models/model.onnx
+      LABELS_PATH: /models/labels.json
+      # Pin the trained model's SHA so a corrupt/again-wrong file fails fast.
+      MODEL_SHA256: ${CLASSIFY_MODEL_SHA256:-}
+      API_KEY: ${CLASSIFY_API_KEY:?set CLASSIFY_API_KEY}
+      INPUT_SIZE: "224"
+    ports:
+      - "8002:8002"
+    volumes:
+      # Drop model.onnx + labels.json here (rsync from the training PC,
+      # or fetch the pinned registry artefact).
+      - ./models:/models:ro
+
+  # Bring your own MegaDetector HTTP service. Any image exposing the
+  # MegaDetector wire contract on :8001 works; example placeholder:
+  megadetector:
+    image: ghcr.io/your-org/megadetector-http:latest
+    container_name: megadetector
+    restart: unless-stopped
+    environment:
+      API_KEY: ${MEGADETECTOR_API_KEY:?set MEGADETECTOR_API_KEY}
+    ports:
+      - "8001:8001"

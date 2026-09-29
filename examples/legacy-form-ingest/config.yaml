@@ -1,0 +1,98 @@
+# yaml-language-server: $schema=./config.schema.json
+#
+# Three-sink composite for a legacy ingest endpoint (HTTP-multipart + MQTT + NDJSON).
+# Run `framescout config schema > config.schema.json` once to drop
+# the JSON Schema next to this file for editor validation.
+
+framescout:
+  dataDir: /var/lib/framescout
+  metricsPort: 9090
+
+deployments:
+  - id: garden
+    location:
+      latitude: 47.0707
+      longitude: 12.6938
+    cameras:
+      - id: garage-east
+      - id: garage-west
+
+sources:
+  - id: reolink-1
+    package: '@framescout/source-reolink-hub'
+    # topNFrames: 3 sends a small gallery (~3 sightings per camera event),
+    # which many legacy receivers expect. Drop to 1 (canonical) for a single
+    # observation per event.
+    topNFrames: 3
+    config:
+      baseUrl: http://192.0.2.50
+      username: admin
+      passwordEnv: REOLINK_PASSWORD
+      channels:
+        - { channel: 0, deploymentId: garden, cameraId: garage-east, aiOnly: true }
+        - { channel: 1, deploymentId: garden, cameraId: garage-west, aiOnly: true }
+      pollIntervalMs: 15000
+
+detectors:
+  - id: megadetector
+    package: '@framescout/detector-megadetector-http'
+    config:
+      endpoint: http://localhost:8001/detect
+      apiKeyEnv: MEGADETECTOR_API_KEY
+      modelVersion: v6.0
+      minConfidence: 0.4
+      skipFramesWithPersonAbove: 0.15
+
+  # Species classifier. This example uses DeepFaune (37 EU mammals, NC
+  # weights). To run YOUR OWN trained model instead — and fold individual
+  # recognition into the same HTTP call — swap this block for
+  # `@framescout/detector-classify-http`; see `examples/split-host/`
+  # and `docs/SPECIES-CLASSIFIER.md`.
+  - id: deepfaune
+    package: '@framescout/detector-deepfaune-http'
+    config:
+      endpoint: http://localhost:8002/classify
+      apiKeyEnv: DEEPFAUNE_API_KEY
+      modelVersion: v1.3
+      minConfidence: 0.4
+
+  # v0.2.x — name your animals. Drop this entry if you don't run
+  # named-individual recognition. See docs/INDIVIDUAL-RECOGNITION.md
+  # for the full feature design + reference-photo workflow.
+  - id: individuals
+    package: '@framescout/detector-individual-embed'
+    config:
+      backbone:
+        kind: dinov2-small        # ~85 MB auto-fetch on first start
+      onlyForLabels: ['cat']      # gate Stage-2 by Stage-1 species
+      similarityThreshold: 0.75    # global default; per-individual override possible
+
+sinks:
+  - id: legacy-ingest
+    package: '@framescout/sink-http-multipart'
+    overflow:
+      policy: drop-oldest
+      queueSize: 64
+    config:
+      endpoint: https://ingest.example.com/api/ingest
+      bearerEnv: INGEST_BEARER_TOKEN
+      wireFormat: bulletin-v1
+      timeoutMs: 30000
+
+  - id: home-assistant
+    package: '@framescout/sink-mqtt'
+    overflow:
+      policy: drop-oldest
+      queueSize: 32
+    config:
+      brokerUrl: mqtt://homeassistant.local:1883
+      topicPattern: framescout/{deployment}/{camera}/{observationType}
+      qos: 1
+      usernameEnv: MQTT_USERNAME
+      passwordEnv: MQTT_PASSWORD
+
+  - id: audit-log
+    package: '@framescout/sink-file-ndjson'
+    config:
+      path: /var/lib/framescout/audit
+      rotateLines: 1000

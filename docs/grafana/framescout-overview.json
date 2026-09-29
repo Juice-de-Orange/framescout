@@ -1,0 +1,203 @@
+{
+  "annotations": { "list": [] },
+  "description": "Framescout v0.1 overview: capture rate, latency, sink health, detector latency. Scrapes the framescout_* metrics surfaced on /metrics (docs/observability.md).",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Captures per minute (by camera)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "smooth" }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(framescout_captures_total[5m])) by (deployment, camera, outcome) * 60",
+          "legendFormat": "{{deployment}}/{{camera}} {{outcome}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Pipeline-stage latency p95",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 5 } }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(framescout_pipeline_stage_seconds_bucket[5m])) by (le, stage))",
+          "legendFormat": "{{stage}} p95",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Sink queue depth",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 10 } }
+      },
+      "targets": [
+        {
+          "expr": "framescout_sink_queue_depth",
+          "legendFormat": "{{sink}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Sink delivery outcomes (per minute)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 10 } }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(framescout_sink_deliveries_total[5m])) by (sink, outcome) * 60",
+          "legendFormat": "{{sink}} {{outcome}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Sink drops by reason",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "ops" }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(framescout_sink_dropped_total[5m])) by (sink, reason) * 60",
+          "legendFormat": "{{sink}} {{reason}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Detector inference latency p50 / p95",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum(rate(framescout_detector_inference_seconds_bucket[5m])) by (le, detector))",
+          "legendFormat": "{{detector}} p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(framescout_detector_inference_seconds_bucket[5m])) by (le, detector))",
+          "legendFormat": "{{detector}} p95",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Frames extracted per minute",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "x": 0, "y": 24, "w": 8, "h": 6 },
+      "fieldConfig": { "defaults": { "unit": "ops" } },
+      "targets": [
+        {
+          "expr": "sum(rate(framescout_frames_extracted_total[5m])) * 60",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Detector error rate",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "x": 8, "y": 24, "w": 8, "h": 6 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 0.01 },
+              { "color": "red",    "value": 0.05 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(framescout_detector_inferences_total{outcome=\"error\"}[5m])) / sum(rate(framescout_detector_inferences_total[5m]))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "/readyz state",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "x": 16, "y": 24, "w": 8, "h": 6 },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "1": { "text": "ready",     "color": "green" } } },
+            { "type": "value", "options": { "0": { "text": "not ready", "color": "red"   } } }
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "max(up{job=\"framescout\"})",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["framescout", "wildlife"],
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": { "text": "Prometheus", "value": "prometheus" },
+        "hide": 0
+      }
+    ]
+  },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Framescout — overview",
+  "uid": "framescout-overview",
+  "version": 1,
+  "weekStart": ""
+}

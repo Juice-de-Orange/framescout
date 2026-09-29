@@ -1,0 +1,27 @@
+services:
+  framescout:
+    image: ghcr.io/juice-de-orange/framescout:v0.2.0
+    container_name: framescout
+    restart: unless-stopped
+    user: "1001:1001"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp
+    network_mode: host
+    env_file: .env
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      # Named volume: Docker creates it owned by the image user (uid 1001).
+      # A bind mount would need `mkdir data && sudo chown 1001:1001 data` first.
+      - framescout-data:/var/lib/framescout
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+volumes:
+  framescout-data:

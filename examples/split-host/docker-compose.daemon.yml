@@ -1,0 +1,34 @@
+# Runs on the daemon host (always on). Just the Framescout daemon — polls Reolink,
+# scores, calls the inference host for inference, POSTs to the ingest endpoint. host network
+# so it can reach Reolink hubs on the LAN. `inference-host` must resolve to
+# the inference host (DNS, /etc/hosts, or a tailnet name).
+services:
+  framescout:
+    image: ghcr.io/juice-de-orange/framescout:v0.2.0
+    container_name: framescout
+    restart: unless-stopped
+    user: "1001:1001"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp
+    network_mode: host
+    env_file: .env
+    extra_hosts:
+      # Map `inference-host` to the VPS IP if you don't have DNS for it.
+      - "inference-host:203.0.113.10"
+    volumes:
+      - ./config.daemon.yaml:/app/config.yaml:ro
+      # Named volume: Docker creates it owned by the image user (uid 1001).
+      # A bind mount would need `mkdir data && sudo chown 1001:1001 data` first.
+      - framescout-data:/var/lib/framescout
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+volumes:
+  framescout-data:

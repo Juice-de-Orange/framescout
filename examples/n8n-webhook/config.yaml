@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=./config.schema.json
+
+framescout:
+  dataDir: /var/lib/framescout
+  metricsPort: 9090
+
+deployments:
+  - id: garden
+    cameras:
+      - id: hedge
+
+sources:
+  - id: reolink-1
+    package: '@framescout/source-reolink-hub'
+    config:
+      baseUrl: http://192.0.2.50
+      username: admin
+      passwordEnv: REOLINK_PASSWORD
+      channels:
+        - { channel: 0, deploymentId: garden, cameraId: hedge, aiOnly: true }
+      pollIntervalMs: 15000
+
+detectors:
+  - id: megadetector
+    package: '@framescout/detector-megadetector-http'
+    config:
+      endpoint: http://localhost:8001/detect
+      minConfidence: 0.4
+      skipFramesWithPersonAbove: 0.15
+  - id: deepfaune
+    package: '@framescout/detector-deepfaune-http'
+    config:
+      endpoint: http://localhost:8002/classify
+      minConfidence: 0.4
+
+sinks:
+  - id: n8n
+    package: '@framescout/sink-webhook'
+    overflow:
+      policy: drop-oldest
+      queueSize: 64
+    config:
+      endpoint: https://n8n.example.com/webhook/framescout
+      bearerEnv: N8N_TOKEN
+      headers:
+        x-trace-id: framescout-prod
+      timeoutMs: 30000

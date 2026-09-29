@@ -1,0 +1,34 @@
+{
+  "name": "@framescout/daemon",
+  "version": "0.0.0",
+  "description": "Framescout container entrypoint. Wires @framescout/core to config.yaml and runs the pipeline.",
+  "license": "Apache-2.0",
+  "author": "Max Oberrauch",
+  "private": true,
+  "type": "module",
+  "main": "./dist/main.js",
+  "engines": { "node": ">=22.12.0" },
+  "scripts": {
+    "build": "tsc -b",
+    "lint": "eslint src",
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@framescout/core": "workspace:^",
+    "@framescout/plugin-api": "workspace:^",
+    "@framescout/source-reolink-hub": "workspace:^",
+    "@framescout/detector-megadetector-http": "workspace:^",
+    "@framescout/detector-deepfaune-http": "workspace:^",
+    "@framescout/detector-individual-embed": "workspace:^",
+    "@framescout/detector-classify-http": "workspace:^",
+    "@framescout/sink-http-multipart": "workspace:^",
+    "@framescout/sink-mqtt": "workspace:^",
+    "@framescout/sink-webhook": "workspace:^",
+    "@framescout/sink-file-ndjson": "workspace:^",
+    "@framescout/cli": "workspace:^",
+    "yaml": "^2.6.1",
+    "zod": "^3.23.0"
+  }
+}

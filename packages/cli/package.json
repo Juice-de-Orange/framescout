@@ -1,0 +1,50 @@
+{
+  "name": "@framescout/cli",
+  "version": "0.0.0",
+  "description": "Command-line interface for Framescout: config validation, schema export, test runs.",
+  "license": "Apache-2.0",
+  "author": "Max Oberrauch",
+  "homepage": "https://github.com/Juice-de-Orange/framescout/tree/main/packages/cli#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Juice-de-Orange/framescout.git",
+    "directory": "packages/cli"
+  },
+  "bugs": { "url": "https://github.com/Juice-de-Orange/framescout/issues" },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "framescout": "./dist/main.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "engines": { "node": ">=22.12.0" },
+  "scripts": {
+    "build": "tsc -b",
+    "lint": "eslint src",
+    "typecheck": "tsc -b",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@framescout/core": "workspace:^",
+    "@framescout/detector-individual-embed": "workspace:^",
+    "@framescout/plugin-api": "workspace:^",
+    "@inquirer/prompts": "^7.2.0",
+    "commander": "^12.1.0",
+    "ulid": "^2.3.0",
+    "yaml": "^2.6.1",
+    "zod-to-json-schema": "^3.23.5"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

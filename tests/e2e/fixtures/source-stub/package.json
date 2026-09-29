@@ -1,0 +1,30 @@
+{
+  "name": "@framescout-e2e/source-stub",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Synthetic CaptureEvent emitter used by the Playwright live-observation spec. Not for production.",
+  "license": "Apache-2.0",
+  "author": "Max Oberrauch",
+  "type": "module",
+  "main": "./dist/index.js",
+  "engines": { "node": ">=22.12.0" },
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "framescout": {
+    "apiVersion": "^0.1.0",
+    "kind": "source",
+    "id": "source-stub",
+    "displayName": "Source stub (E2E only)"
+  },
+  "peerDependencies": {
+    "@framescout/plugin-api": "workspace:^"
+  },
+  "dependencies": {
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@framescout/plugin-api": "workspace:^",
+    "typescript": "^5.7.2"
+  }
+}

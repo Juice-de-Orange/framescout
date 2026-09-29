@@ -1,0 +1,34 @@
+[project]
+name = "framescout-inference-server"
+version = "0.1.0"
+description = "Self-hosted Framescout classifier inference server (FastAPI + ONNX Runtime). Serves species predictions + an embedding per crop for the detector-classify-http plugin."
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+# Pinned for reproducible deploys on the inference host (a CPU-only VPS). No torch — the
+# fine-tuned model is exported to ONNX by the trainer; inference is
+# onnxruntime CPU (same numerics as the daemon's onnxruntime-node).
+dependencies = [
+    "fastapi==0.115.6",
+    "uvicorn[standard]==0.34.0",
+    "onnxruntime==1.20.1",
+    "pillow==11.1.0",
+    "numpy==2.2.1",
+    "python-multipart==0.0.20",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==8.3.4", "httpx==0.28.1", "onnx==1.17.0", "ruff==0.8.4", "mypy==1.14.0"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["framescout_inference"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true

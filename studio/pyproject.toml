@@ -1,0 +1,41 @@
+[project]
+name = "framescout-studio"
+version = "0.1.0"
+description = "Local GPU labeling + training studio for Framescout. A browser UI served by a local Python server on the main PC: pull crops from the daemon’s label queue, label them with model auto-suggestions (active learning), train on the GPU, and deploy the model to the inference server."
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+dependencies = [
+    "framescout-trainer",
+    "fastapi==0.115.6",
+    "uvicorn[standard]==0.34.0",
+    "httpx==0.28.1",
+    "pillow==11.1.0",
+    "numpy==2.2.1",
+]
+
+[project.optional-dependencies]
+# GPU suggestions from a model.pt checkpoint (main PC).
+torch = ["torch>=2.6.0,<3", "timm==1.0.12"]
+# Suggestions from an exported model.onnx (CI / no-GPU).
+onnx = ["onnxruntime==1.20.1"]
+dev = ["pytest==8.3.4", "httpx==0.28.1", "onnx==1.17.0", "onnxruntime==1.20.1", "ruff==0.8.4", "mypy==1.14.0"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["framescout_studio"]
+
+[tool.setuptools.package-data]
+framescout_studio = ["web/**/*"]
+
+[tool.uv.sources]
+framescout-trainer = { path = "../training", editable = true }
+
+[tool.ruff]
+line-length = 100
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true

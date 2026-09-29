@@ -1,0 +1,11 @@
+dataset/
+runs/
+dist/
+studio.toml
+*.onnx
+*.pt
+__pycache__/
+*.egg-info/
+.venv/
+.local_queue/
+_backup_label_reset_*/

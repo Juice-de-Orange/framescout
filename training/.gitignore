@@ -1,0 +1,12 @@
+# Datasets, checkpoints and exported artefacts are never committed —
+# they're large and reproducible. Distribute the ONNX via the registry
+# pin / rsync (see docs/SPECIES-CLASSIFIER.md).
+dataset/
+holdout/
+runs/
+dist/
+*.onnx
+*.pt
+__pycache__/
+*.egg-info/
+.venv/

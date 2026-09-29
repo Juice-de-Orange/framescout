@@ -1,0 +1,576 @@
+:root {
+  --bg: #0d1017;
+  --panel: #161b24;
+  --panel-2: #1d2430;
+  --border: #2a3340;
+  --text: #e6ebf2;
+  --muted: #8b97a8;
+  --accent: #4f9dff;
+  --accent-ink: #06234a;
+  --good: #41c98a;
+  --mid: #e0a93a;
+  --bad: #e5604d;
+  --radius: 10px;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 15px;
+}
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+kbd {
+  font-family: var(--mono);
+  font-size: 0.78em;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  padding: 0 5px;
+  color: var(--muted);
+}
+
+code {
+  font-family: var(--mono);
+  background: var(--panel-2);
+  padding: 0 4px;
+  border-radius: 4px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.hint {
+  font-size: 0.86rem;
+}
+
+/* ── top bar ─────────────────────────────────────────────────────── */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  flex-wrap: wrap;
+}
+
+.topbar h1 {
+  font-size: 1.05rem;
+  margin: 0;
+  letter-spacing: 0.2px;
+}
+
+.counters {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.counter {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.counter strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.counter.badge {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 10px;
+  font-size: 0.8rem;
+}
+
+/* ── banners ─────────────────────────────────────────────────────── */
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 20px;
+  font-size: 0.9rem;
+}
+
+.banner-error {
+  background: color-mix(in srgb, var(--bad) 22%, var(--bg));
+  border-bottom: 1px solid var(--bad);
+}
+
+.banner-warn {
+  background: color-mix(in srgb, var(--mid) 20%, var(--bg));
+  border-bottom: 1px solid var(--mid);
+}
+
+.banner-info {
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.banner-close {
+  background: none;
+  border: none;
+  color: inherit;
+  opacity: 0.7;
+}
+
+/* ── layout ──────────────────────────────────────────────────────── */
+.layout {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 18px;
+  padding: 18px 20px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.label-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.side-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── stage ───────────────────────────────────────────────────────── */
+.stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  min-height: 320px;
+}
+
+.crop {
+  max-width: 100%;
+  max-height: 60vh;
+  border-radius: 6px;
+  image-rendering: auto;
+}
+
+.preload {
+  display: none;
+}
+
+/* ── suggestion ──────────────────────────────────────────────────── */
+.suggestion {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.sugg-main {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.sugg-species {
+  font-size: 1.5rem;
+  font-weight: 650;
+}
+
+.sugg-prob {
+  font-family: var(--mono);
+  color: var(--muted);
+  font-size: 1.05rem;
+}
+
+.confbar {
+  margin: 10px 0;
+  height: 8px;
+  background: var(--panel-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.confbar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.18s ease;
+}
+
+.conf-high {
+  background: var(--good);
+}
+.conf-mid {
+  background: var(--accent);
+}
+.conf-low {
+  background: var(--mid);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.chip-individual {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── palette + actions ───────────────────────────────────────────── */
+.palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.palette-btn,
+.actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.palette-btn:hover:not(:disabled),
+.actions button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.palette-btn .key,
+.actions kbd {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+}
+
+.palette-btn .key {
+  background: var(--bg);
+  border-radius: 5px;
+  padding: 1px 6px;
+  color: var(--muted);
+}
+
+/* ── select-then-confirm pickers ─────────────────────────────────── */
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.picker--disabled {
+  opacity: 0.5;
+}
+.picker-label {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.picker-label .req {
+  color: var(--accent);
+}
+.picker-label .opt {
+  opacity: 0.7;
+}
+
+/* Selected button — filled accent, like the primary action. */
+.palette-btn--selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.palette-btn--selected .key {
+  background: rgba(255, 255, 255, 0.25);
+  color: inherit;
+}
+/* Predicted (model/AI) but not selected — just an accent outline. */
+.palette-btn--predicted:not(.palette-btn--selected) {
+  border-color: var(--accent);
+}
+.palette-btn .tag {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  background: var(--bg);
+  border-radius: 4px;
+  padding: 1px 4px;
+  color: var(--muted);
+}
+.palette-btn--selected .tag {
+  background: rgba(255, 255, 255, 0.25);
+  color: inherit;
+}
+.palette-btn--add {
+  border-style: dashed;
+  color: var(--muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+button.primary {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: var(--accent-ink);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-weight: 600;
+}
+
+button.primary kbd {
+  background: rgba(255, 255, 255, 0.25);
+  border: none;
+  color: inherit;
+}
+
+button.secondary {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 14px;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── empty / feeding states ──────────────────────────────────────── */
+.queue-status {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 48px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-height: 320px;
+  justify-content: center;
+}
+
+.queue-status-icon {
+  font-size: 2.6rem;
+}
+
+.queue-status h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.queue-status p {
+  max-width: 46ch;
+  margin: 0 0 8px;
+}
+
+/* ── side panels ─────────────────────────────────────────────────── */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.panel h2 {
+  margin: 0 0 12px;
+  font-size: 1rem;
+}
+
+.field-row {
+  display: flex;
+  gap: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  flex: 1;
+}
+
+.field input,
+.dialog-label input {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 7px;
+  padding: 7px 9px;
+  font: inherit;
+}
+
+.btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.btn-row button {
+  flex: 1;
+}
+
+.progress {
+  margin-top: 12px;
+  height: 7px;
+  background: var(--panel-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--good);
+  transition: width 0.2s ease;
+}
+
+.progress-error {
+  background: var(--bad);
+}
+
+.progress-text {
+  margin-top: 6px;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.train-log {
+  margin: 10px 0 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 8px 10px;
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  color: var(--muted);
+  /* resizable — fixes the old hard 160px cap */
+  height: 150px;
+  min-height: 60px;
+  max-height: 480px;
+  overflow: auto;
+  resize: vertical;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.deploy-warning {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid var(--mid);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--mid) 14%, var(--bg));
+  font-size: 0.86rem;
+}
+
+.deploy-warning p {
+  margin: 0 0 8px;
+}
+
+/* ── dialog ──────────────────────────────────────────────────────── */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.dialog {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  width: min(420px, 92vw);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.dialog h3 {
+  margin: 0 0 14px;
+  font-size: 1.05rem;
+}
+
+.dialog-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.dialog-label input {
+  font-size: 1rem;
+}
+
+.dialog-error {
+  color: var(--bad);
+  font-size: 0.84rem;
+  margin: 8px 0 0;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}

@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Framescout Studio
+Comment=Label wildlife crops and train your classifier on the GPU
+Exec=bash -lc "cd %k/.. && ./run.sh"
+Terminal=true
+Categories=Science;Utility;

@@ -1,0 +1,19 @@
+# Framescout Studio config. Copy to studio.toml and edit.
+# Env vars (STUDIO_*) override these.
+
+[daemon]
+base_url = "http://daemon-host.local:9090"  # the daemon's metrics/UI port
+# Provide the token one of two ways:
+token = ""                                  # paste <dataDir>/.ui-token contents
+# ui_token_path = "/mnt/daemon-host/var/lib/framescout/.ui-token"   # or read the file
+
+[inference]
+base_url = "http://inference-host:8002"     # the inference server
+admin_key = ""                              # its ADMIN_KEY
+
+[studio]
+dataset_dir = "./dataset"                   # local authoritative dataset (trained from)
+run_dir = "./runs/current"                  # checkpoints + exported model
+backbone = "convnextv2_tiny"
+host = "127.0.0.1"
+port = 8770

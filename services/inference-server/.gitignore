@@ -1,0 +1,6 @@
+# Model artefacts are distributed via the registry pin / rsync, not git.
+*.onnx
+labels.json
+__pycache__/
+*.egg-info/
+.venv/

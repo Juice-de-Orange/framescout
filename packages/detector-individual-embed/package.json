@@ -1,0 +1,73 @@
+{
+  "name": "@framescout/detector-individual-embed",
+  "version": "0.0.0",
+  "description": "Framescout Detector plugin: name your animals (cats, etc.) and recognise them in real-time via pre-trained vision embeddings + per-individual centroid + cosine similarity. Two-stage chain after a species classifier.",
+  "license": "Apache-2.0",
+  "author": "Max Oberrauch",
+  "homepage": "https://github.com/Juice-de-Orange/framescout/tree/main/packages/detector-individual-embed#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Juice-de-Orange/framescout.git",
+    "directory": "packages/detector-individual-embed"
+  },
+  "bugs": {
+    "url": "https://github.com/Juice-de-Orange/framescout/issues"
+  },
+  "keywords": [
+    "framescout-plugin",
+    "framescout-detector",
+    "individual-recognition",
+    "embedding",
+    "dinov2",
+    "wildlife"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "lint": "eslint src",
+    "typecheck": "tsc -b",
+    "test": "vitest run"
+  },
+  "framescout": {
+    "apiVersion": "^0.1.0",
+    "kind": "detector",
+    "id": "individual-embed",
+    "displayName": "Individual recognition (embedding)"
+  },
+  "peerDependencies": {
+    "@framescout/plugin-api": "workspace:^"
+  },
+  "dependencies": {
+    "@framescout/core": "workspace:^",
+    "@framescout/individual-recognition": "workspace:^",
+    "chokidar": "^4.0.1",
+    "onnxruntime-node": "^1.20.1",
+    "sharp": "^0.35.3",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@framescout/plugin-api": "workspace:^"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

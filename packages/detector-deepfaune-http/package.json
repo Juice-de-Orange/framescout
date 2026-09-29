@@ -1,0 +1,53 @@
+{
+  "name": "@framescout/detector-deepfaune-http",
+  "version": "0.0.0",
+  "description": "Framescout Detector plugin: POST cropped animal JPEGs to a DeepFaune v1.3 HTTP service (NC weights).",
+  "license": "Apache-2.0",
+  "author": "Max Oberrauch",
+  "homepage": "https://github.com/Juice-de-Orange/framescout/tree/main/packages/detector-deepfaune-http#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Juice-de-Orange/framescout.git",
+    "directory": "packages/detector-deepfaune-http"
+  },
+  "bugs": { "url": "https://github.com/Juice-de-Orange/framescout/issues" },
+  "keywords": ["framescout-plugin", "framescout-detector", "deepfaune", "species", "wildlife"],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "engines": { "node": ">=22.12.0" },
+  "scripts": {
+    "build": "tsc -b",
+    "lint": "eslint src",
+    "typecheck": "tsc -b",
+    "test": "vitest run"
+  },
+  "framescout": {
+    "apiVersion": "^0.1.0",
+    "kind": "detector",
+    "id": "deepfaune-http",
+    "displayName": "DeepFaune (HTTP)"
+  },
+  "peerDependencies": {
+    "@framescout/plugin-api": "workspace:^"
+  },
+  "dependencies": {
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@framescout/plugin-api": "workspace:^"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

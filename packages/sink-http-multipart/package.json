@@ -1,0 +1,57 @@
+{
+  "name": "@framescout/sink-http-multipart",
+  "version": "0.0.0",
+  "description": "Framescout Sink plugin: generic multipart POST of best-frame JPEG + JSON observation metadata.",
+  "license": "Apache-2.0",
+  "author": "Max Oberrauch",
+  "homepage": "https://github.com/Juice-de-Orange/framescout/tree/main/packages/sink-http-multipart#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Juice-de-Orange/framescout.git",
+    "directory": "packages/sink-http-multipart"
+  },
+  "bugs": { "url": "https://github.com/Juice-de-Orange/framescout/issues" },
+  "keywords": ["framescout-plugin", "framescout-sink", "http", "multipart"],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "engines": { "node": ">=22.12.0" },
+  "scripts": {
+    "build": "tsc -b",
+    "lint": "eslint src",
+    "typecheck": "tsc -b",
+    "test": "vitest run"
+  },
+  "framescout": {
+    "apiVersion": "^0.1.0",
+    "kind": "sink",
+    "id": "http-multipart",
+    "displayName": "HTTP Multipart"
+  },
+  "peerDependencies": {
+    "@framescout/plugin-api": "workspace:^"
+  },
+  "dependencies": {
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@framescout/plugin-api": "workspace:^",
+    "@types/busboy": "^1.5.4",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "busboy": "^1.6.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

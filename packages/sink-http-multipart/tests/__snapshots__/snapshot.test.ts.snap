@@ -1,0 +1,46 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`HttpMultipartSink — reference-wire snapshot > bulletin-v1 multipart body matches the committed snapshot 1`] = `
+{
+  "fields": {
+    "cameraSlug": "reference-camera",
+    "capturedAt": "2026-01-01T00:00:00.000Z",
+    "individualName": "",
+    "species": "Sus scrofa",
+    "speciesConfidence": "0.92",
+    "speciesDe": "",
+  },
+  "files": [
+    {
+      "bytes": 22,
+      "filename": "reference-event-1-best.jpg",
+      "mimeType": "image/jpeg",
+      "name": "image",
+      "sha256": "473715a932e74c8d8588b2c53587f16ddbdb5ec86a0b55d05207bb08d818df14",
+    },
+  ],
+}
+`;
+
+exports[`HttpMultipartSink — reference-wire snapshot > framescout-v1 multipart body matches the committed snapshot 1`] = `
+{
+  "fields": {},
+  "files": [
+    {
+      "bytes": 22,
+      "filename": "reference-event-1-best.jpg",
+      "mimeType": "image/jpeg",
+      "name": "image",
+      "sha256": "473715a932e74c8d8588b2c53587f16ddbdb5ec86a0b55d05207bb08d818df14",
+    },
+    {
+      "bytes": 999,
+      "filename": "metadata.json",
+      "mimeType": "application/json",
+      "name": "metadata",
+      "sha256": "66cf160eb6dbaf2511241481bbeb645b9bbbdcf6fde9c7a082e2bac0bd45be06",
+      "text": "{"schemaVersion":1,"observation":{"observationId":"01HSNAPSHOT00000000000000FX","deploymentId":"reference-deployment","cameraId":"reference-camera","eventId":"reference-event-1","mediaId":"reference-event-1-best","eventStart":"2026-01-01T00:00:00.000Z","eventEnd":"2026-01-01T00:00:05.000Z","observationLevel":"media","observationType":"animal","count":1,"scientificName":"Sus scrofa","taxonRank":"species","bbox":[0.1,0.2,0.3,0.4],"classificationMethod":"machine","classifiedBy":"megadetector@v6.0","classificationTimestamp":"2026-01-01T00:00:06.000Z","classificationProbability":0.92,"detectorModel":{"name":"megadetector","version":"v6.0"},"pipelineRunId":"01HSNAPSHOT00000000000000RUN"},"frame":{"jpegSha256":"473715a932e74c8d8588b2c53587f16ddbdb5ec86a0b55d05207bb08d818df14","sampleAt":"2026-01-01T00:00:02.000Z","sharpness":0.6,"motion":0.4,"compositeScore":0.55},"allDetections":[{"label":"animal","confidence":0.92,"bbox":[0.1,0.2,0.3,0.4],"modelName":"megadetector","modelVersion":"v6.0"}]}",
+    },
+  ],
+}
+`;

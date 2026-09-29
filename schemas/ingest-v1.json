@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://framescout.dev/schemas/ingest-v1.json",
+  "title": "Framescout v0.1 Ingest Payload",
+  "description": "JSON metadata part of the multipart HTTP-multipart sink payload. The JPEG is the multipart 'image' part. This schema is immutable for v0.1.x; a v2 introduces a new schema file 'ingest-v2.json'.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "observation", "frame"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "observation": { "$ref": "#/$defs/Observation" },
+    "frame": { "$ref": "#/$defs/Frame" },
+    "allDetections": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Detection" }
+    }
+  },
+  "$defs": {
+    "Observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "observationId",
+        "deploymentId",
+        "eventStart",
+        "eventEnd",
+        "observationLevel",
+        "observationType"
+      ],
+      "properties": {
+        "observationId":    { "type": "string", "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$", "description": "ULID" },
+        "deploymentId":     { "type": "string", "minLength": 1 },
+        "cameraId":         { "type": "string", "minLength": 1, "description": "Framescout extension — surfaced for routing/labelling (MQTT topics, metric labels). Not in strict Camtrap-DP observations table." },
+        "eventId":          { "type": "string", "minLength": 1 },
+        "mediaId":          { "type": "string", "minLength": 1 },
+        "eventStart":       { "type": "string", "format": "date-time" },
+        "eventEnd":         { "type": "string", "format": "date-time" },
+        "observationLevel": { "enum": ["media", "event"] },
+        "observationType":  { "enum": ["animal", "human", "vehicle", "blank", "unknown", "unclassified"] },
+        "scientificName":   { "type": "string" },
+        "taxonRank":        { "enum": ["kingdom", "phylum", "class", "order", "family", "genus", "species"] },
+        "count":            { "type": "integer", "minimum": 0 },
+        "lifeStage":        { "enum": ["adult", "subadult", "juvenile"] },
+        "sex":              { "enum": ["female", "male"] },
+        "behavior":         { "type": "string" },
+        "bbox": {
+          "type": "array",
+          "items": { "type": "number", "minimum": 0, "maximum": 1 },
+          "minItems": 4,
+          "maxItems": 4,
+          "description": "[x, y, width, height] normalized 0..1"
+        },
+        "classificationMethod":      { "enum": ["human", "machine"] },
+        "classifiedBy":              { "type": "string" },
+        "classificationTimestamp":   { "type": "string", "format": "date-time" },
+        "classificationProbability": { "type": "number", "minimum": 0, "maximum": 1 },
+        "pipelineRunId":             { "type": "string" },
+        "detectorModel": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "version"],
+          "properties": {
+            "name":    { "type": "string" },
+            "version": { "type": "string" }
+          }
+        },
+        "classifierModel": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "version"],
+          "properties": {
+            "name":    { "type": "string" },
+            "version": { "type": "string" }
+          }
+        }
+      }
+    },
+    "Frame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["jpegSha256", "sampleAt", "sharpness", "compositeScore"],
+      "properties": {
+        "jpegSha256":     {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA-256 hex of the JPEG bytes carried in the multipart 'image' part. Sinks verify integrity by re-hashing."
+        },
+        "sampleAt":       { "type": "string", "format": "date-time" },
+        "sharpness":      { "type": "number", "minimum": 0, "maximum": 1 },
+        "motion":         { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "compositeScore": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "Detection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "confidence", "modelName", "modelVersion"],
+      "properties": {
+        "label":        { "type": "string", "minLength": 1 },
+        "confidence":   { "type": "number", "minimum": 0, "maximum": 1 },
+        "bbox": {
+          "type": "array",
+          "items": { "type": "number", "minimum": 0, "maximum": 1 },
+          "minItems": 4,
+          "maxItems": 4
+        },
+        "modelName":    { "type": "string", "minLength": 1 },
+        "modelVersion": { "type": "string", "minLength": 1 },
+        "extra":        { "type": "object" }
+      }
+    }
+  }
+}

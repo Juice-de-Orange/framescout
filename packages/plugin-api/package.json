@@ -1,0 +1,61 @@
+{
+  "name": "@framescout/plugin-api",
+  "version": "0.1.0",
+  "description": "Public plugin contracts for Framescout — Source, Detector, Sink interfaces and shared types.",
+  "license": "Apache-2.0",
+  "author": "Max Oberrauch",
+  "homepage": "https://github.com/Juice-de-Orange/framescout/tree/main/packages/plugin-api#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Juice-de-Orange/framescout.git",
+    "directory": "packages/plugin-api"
+  },
+  "bugs": {
+    "url": "https://github.com/Juice-de-Orange/framescout/issues"
+  },
+  "keywords": [
+    "framescout",
+    "plugin-api",
+    "wildlife",
+    "camera",
+    "trap"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "etc",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "lint": "eslint src",
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "api-extractor": "api-extractor run --local --verbose",
+    "api-extractor:check": "api-extractor run --verbose"
+  },
+  "peerDependencies": {
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "zod": "^3.23.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "name": "@framescout/sink-mqtt",
+  "version": "0.0.0",
+  "description": "Framescout Sink plugin: publish observations as JSON messages to an MQTT broker.",
+  "license": "Apache-2.0",
+  "author": "Max Oberrauch",
+  "homepage": "https://github.com/Juice-de-Orange/framescout/tree/main/packages/sink-mqtt#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Juice-de-Orange/framescout.git",
+    "directory": "packages/sink-mqtt"
+  },
+  "bugs": { "url": "https://github.com/Juice-de-Orange/framescout/issues" },
+  "keywords": ["framescout-plugin", "framescout-sink", "mqtt", "home-assistant"],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "engines": { "node": ">=22.12.0" },
+  "scripts": {
+    "build": "tsc -b",
+    "lint": "eslint src",
+    "typecheck": "tsc -b",
+    "test": "vitest run"
+  },
+  "framescout": {
+    "apiVersion": "^0.1.0",
+    "kind": "sink",
+    "id": "mqtt",
+    "displayName": "MQTT"
+  },
+  "peerDependencies": {
+    "@framescout/plugin-api": "workspace:^"
+  },
+  "dependencies": {
+    "mqtt": "^5.10.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@framescout/plugin-api": "workspace:^",
+    "aedes": "^0.51.3"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

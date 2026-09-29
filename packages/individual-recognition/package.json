@@ -1,0 +1,41 @@
+{
+  "name": "@framescout/individual-recognition",
+  "version": "0.0.0",
+  "description": "Framescout shared individual-recognition core: per-individual centroid storage, cosine matcher, and reference-dir hot-reload. Embedding-source agnostic (local ONNX or remote HTTP) — no onnxruntime, no sharp.",
+  "license": "Apache-2.0",
+  "author": "Max Oberrauch",
+  "homepage": "https://github.com/Juice-de-Orange/framescout/tree/main/packages/individual-recognition#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Juice-de-Orange/framescout.git",
+    "directory": "packages/individual-recognition"
+  },
+  "bugs": { "url": "https://github.com/Juice-de-Orange/framescout/issues" },
+  "keywords": ["framescout", "individual-recognition", "centroid", "cosine"],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "engines": { "node": ">=22.12.0" },
+  "scripts": {
+    "build": "tsc -b",
+    "lint": "eslint src",
+    "typecheck": "tsc -b",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "chokidar": "^4.0.1"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

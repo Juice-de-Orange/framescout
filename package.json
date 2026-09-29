@@ -1,0 +1,36 @@
+{
+  "name": "framescout",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.1.2",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "tsc -b --clean && rimraf '{packages,apps}/*/dist' '{packages,apps}/*/.tsbuildinfo' '**/*.tsbuildinfo'",
+    "lint": "eslint .",
+    "typecheck": "tsc -b --pretty",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "commitlint": "commitlint --edit",
+    "e2e": "pnpm -r build && playwright test --config tests/e2e/playwright.config.ts",
+    "e2e:install": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.5.0",
+    "@commitlint/config-conventional": "^19.5.0",
+    "@eslint/js": "^9.15.0",
+    "@microsoft/api-extractor": "^7.47.11",
+    "@playwright/test": "^1.49.0",
+    "@types/node": "^22.10.1",
+    "eslint": "^9.15.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.6.0",
+    "rimraf": "^6.0.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.0",
+    "vitest": "^4.1.5"
+  }
+}

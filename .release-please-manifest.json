@@ -1,0 +1,16 @@
+{
+  "packages/plugin-api": "0.1.0",
+  "packages/core": "0.0.0",
+  "packages/cli": "0.0.0",
+  "packages/source-reolink-hub": "0.0.0",
+  "packages/detector-megadetector-http": "0.0.0",
+  "packages/detector-deepfaune-http": "0.0.0",
+  "packages/sink-http-multipart": "0.0.0",
+  "packages/sink-mqtt": "0.0.0",
+  "packages/sink-webhook": "0.0.0",
+  "packages/sink-file-ndjson": "0.0.0",
+  "apps/daemon": "0.0.0",
+  "packages/detector-classify-http": "0.0.0",
+  "packages/detector-individual-embed": "0.0.0",
+  "packages/individual-recognition": "0.0.0"
+}

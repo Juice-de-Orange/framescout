@@ -1,0 +1,135 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: build + lint + test (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # On PRs we test Node 22 LTS only — fast feedback (V0.1-SCOPE §6).
+        # On push to main we additionally test Node 24 to catch upcoming-Node regressions.
+        node: ${{ github.event_name == 'pull_request' && fromJSON('["22"]') || fromJSON('["22", "24"]') }}
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 11.1.2
+          run_install: false
+          # pnpm 11 requires Node >=22.13 to install. The runner's default
+          # Node is 20.x, so we use the standalone binary (no Node needed
+          # for installation) and only then bring up the matrix Node.
+          standalone: true
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build (tsc -b)
+        run: pnpm build
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      # decodeClip is the core function (clip -> frames) and is tested behind
+      # `describe.skipIf(!ffmpegAvailable)`. Without ffmpeg on the runner vitest
+      # silently skips those tests, and the package's most important function
+      # would never run under test.
+      - name: ffmpeg (for the decode integration tests)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: Test
+        run: pnpm test
+
+      # E2E only runs on Node 22 to keep PR feedback fast — the
+      # Playwright browser download + daemon-supervisor spawn is
+      # ~30s overhead per matrix node and Node 24 doesn't add E2E
+      # signal beyond what `pnpm test` covers.
+      - name: Playwright browsers (chromium)
+        if: matrix.node == '22'
+        run: pnpm exec playwright install --with-deps chromium
+
+      # The root `tsc -b` walks composite project references only —
+      # apps/ui builds via `vite build` and the E2E source-stub plugin
+      # isn't referenced from any composite chain, so both are absent
+      # in CI. Build them explicitly here before the daemon tries to
+      # serve `/ui/` or load the stub plugin.
+      - name: Build UI bundle (vite)
+        if: matrix.node == '22'
+        run: pnpm --filter @framescout/ui build
+
+      - name: Build E2E source-stub fixture
+        if: matrix.node == '22'
+        run: pnpm --filter @framescout-e2e/source-stub build
+
+      - name: E2E (Playwright)
+        if: matrix.node == '22'
+        run: pnpm exec playwright test --config tests/e2e/playwright.config.ts
+
+  secrets:
+    # Full-history secret scan on every PR and push. Same tool and version as
+    # the pre-commit hook (.pre-commit-config.yaml).
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          curl -sSfL -o gitleaks.tgz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tgz" | sha256sum -c -
+          tar -xzf gitleaks.tgz gitleaks
+      - name: Scan the full history
+        run: ./gitleaks git . --redact --no-banner
+
+  commitlint:
+    # release-please derives versions from the commit types, so the
+    # Conventional Commits format is load-bearing: check every commit of a PR.
+    name: Commit messages
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Lint commits in this PR
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: pnpm exec commitlint --from "$BASE_SHA" --to "$HEAD_SHA" --verbose

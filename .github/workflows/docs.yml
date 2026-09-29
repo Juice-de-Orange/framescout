@@ -1,0 +1,67 @@
+name: docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'apps/docs-site/**'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch: {}
+
+# GitHub Pages reads from the deployment that gets uploaded below.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Starlight site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 11.1.2
+          run_install: false
+          standalone: true
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Sync + build docs site
+        run: pnpm -F @framescout/docs-site build
+
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+        with:
+          path: apps/docs-site/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    # GitHub Pages requires either a public repo or GitHub Pro. While the
+    # repo is private and Pages is off, the deploy step would 404 and
+    # paint the whole workflow red — gate it behind an opt-in repository
+    # variable. Flip `DEPLOY_PAGES=true` under Settings → Secrets and
+    # variables → Actions → Variables once Pages is enabled.
+    if: vars.DEPLOY_PAGES == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

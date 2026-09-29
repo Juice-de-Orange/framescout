@@ -1,0 +1,58 @@
+packages:
+  - 'packages/*'
+  - 'apps/*'
+  - 'tests/e2e/fixtures/*'
+
+# esbuild's postinstall script is intentionally NOT run: modern esbuild
+# (>=0.17) ships the platform binary via @esbuild/<platform> optional
+# subdeps, so vitest works without the legacy postinstall download.
+# Explicit `false` silences the `pnpm approve-builds` prompt.
+allowBuilds:
+  esbuild: false
+  # sharp's install script downloads platform-specific libvips binaries.
+  # Required — the JS layer doesn't work without them.
+  sharp: true
+  # onnxruntime-node's install script downloads platform binaries
+  # (CPU EP for linux/x64 + linux/arm64). Required for the
+  # @framescout/detector-individual-embed plugin.
+  onnxruntime-node: true
+
+# Lift transitive advisories. Every target stays inside the range of its
+# parent package, so there is no compatibility risk. Since pnpm 10 overrides
+# live here, not in package.json. On the next larger upgrade, check whether
+# each entry is still needed: remove it, `pnpm install`,
+# `pnpm audit --audit-level=low`.
+overrides:
+  adm-zip: '^0.6.0'
+  ws: '^8.21.1'
+  postcss: '^8.5.18'
+  svgo: '^4.0.2'
+  js-yaml: '^4.3.0'
+  # brace-expansion per major line, scoped to the parent: eslint pulls the 1.x
+  # line through minimatch@3, which cannot use the 5.x API (minimatch fails
+  # with "TypeError: expand is not a function"). Everything else can move to
+  # 5.x, so a single global jump to 5 is not possible.
+  minimatch>brace-expansion: '^1.1.16'
+  brace-expansion: '^5.0.8'
+  fast-uri: '^3.1.4'
+  devalue: '^5.8.1'
+  esbuild: '^0.28.1'
+  # vitest 4 bundles vite 8, and the docs site runs on vite 8 since the
+  # Astro 7 upgrade, so a global override is safe.
+  vite: '^8.0.16'
+  # via sink-mqtt > aedes > hyperid
+  uuid: '^11.1.1'
+  # via eslint-plugin-react-hooks
+  '@babel/core': '^7.29.6'
+
+# Deliberately accepted, NOT resolved: GHSA-mh99-v99m-4gvg (brace-expansion,
+# DoS through unbounded expansion). The fix exists only in the 5.x line; here
+# the package is reached exclusively through `minimatch@3`, which does not
+# understand the 5.x API. minimatch@3 comes from eslint and
+# @microsoft/api-extractor — developer tooling that only ever sees our own file
+# paths, never untrusted input, and is never shipped. The 1.x line is patched
+# as far as it goes with ^1.1.16 (which closes the two other brace-expansion
+# advisories). Remove once eslint moves to minimatch >= 10.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-mh99-v99m-4gvg

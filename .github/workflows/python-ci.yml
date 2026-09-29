@@ -1,0 +1,72 @@
+name: python-ci
+
+# Gates the Python side (training, inference server, studio). The
+# TypeScript pipeline (ci.yml) is untouched. All jobs are torch-free:
+# the trainer's core deps are torch-free (torch lives in the [train]
+# extra), so preprocess/suggest/contract tests run on CPU without the
+# GPU stack.
+on:
+  pull_request:
+    branches: [main]
+    paths: ['training/**', 'services/inference-server/**', 'studio/**', '.github/workflows/python-ci.yml']
+  push:
+    branches: [main]
+    paths: ['training/**', 'services/inference-server/**', 'studio/**', '.github/workflows/python-ci.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  trainer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install -e "training[dev]"
+      - run: ruff check training
+      - run: pytest training/tests -q
+
+  inference-server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install -e "services/inference-server[dev]"
+      - run: ruff check services/inference-server
+      - run: pytest services/inference-server/tests -q
+
+  studio:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.11'
+          cache: pip
+      # Install the trainer first (core, torch-free) so studio's
+      # framescout-trainer requirement resolves without fetching from PyPI.
+      - run: pip install -e "training[dev]"
+      - run: pip install -e "studio[onnx,dev]"
+      - run: ruff check studio
+      - run: pytest studio/tests -q
+      # Advisory check for the Python side (the TS side runs `pnpm audit`).
+      - run: pip install --quiet pip-audit
+      # Deliberately non-blocking for now: an advisory in a transitive torch
+      # dependency without an available fix would otherwise fail every PR.
+      # Once the output stays quiet for a few weeks, drop `continue-on-error`
+      # to make it blocking, like `pnpm audit --audit-level=low` on the TS side.
+      - run: pip-audit --strict --desc
+        continue-on-error: true
+

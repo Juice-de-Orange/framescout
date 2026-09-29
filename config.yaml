@@ -1,0 +1,69 @@
+# yaml-language-server: $schema=./config.schema.json
+#
+# Example Framescout configuration. Generate config.schema.json once the
+# core is built with: `framescout config schema > config.schema.json`.
+# IDE will then validate this file inline.
+
+framescout:
+  dataDir: /var/lib/framescout      # state, spools, plugin dataDirs
+  metricsPort: 9090                 # 0 = disable /metrics, /healthz, /readyz
+
+deployments:
+  - id: example-garden              # used as deploymentId in CaptureEvent
+    location:                       # optional but recommended for Camtrap DP
+      latitude: 47.0707
+      longitude: 12.6938
+    cameras:
+      - id: front-yard              # used as cameraId in CaptureEvent
+
+sources:
+  - id: reolink-1
+    package: '@framescout/source-reolink-hub'
+    config:
+      baseUrl: https://192.0.2.50
+      username: admin
+      passwordEnv: REOLINK_PASSWORD      # name of the env var holding the password
+      channels:
+        - channel: 0
+          deploymentId: example-garden
+          cameraId: front-yard
+      pollIntervalMs: 15000
+    # Uncomment to emit Observations for zero-detection events too
+    # (useful for occupancy studies; off by default to avoid sink flooding):
+    # emitBlankObservations: true
+
+# v0.1: detectors run in YAML declaration order. Explicit chainAfter
+# (DAG dependencies) is coming in v0.2.
+detectors:
+  - id: megadetector
+    package: '@framescout/detector-megadetector-http'
+    config:
+      endpoint: http://localhost:8001
+      apiKeyEnv: MEGADETECTOR_API_KEY
+      minConfidence: 0.4
+      skipFramesWithPersonAbove: 0.15   # privacy gate, in detector
+
+  - id: deepfaune
+    package: '@framescout/detector-deepfaune-http'
+    config:
+      endpoint: http://localhost:8002
+      apiKeyEnv: DEEPFAUNE_API_KEY
+      minConfidence: 0.4
+
+sinks:
+  - id: mqtt-ha
+    package: '@framescout/sink-mqtt'
+    overflow:
+      policy: drop-oldest
+      queueSize: 32
+    config:
+      brokerUrl: mqtt://homeassistant.local
+      topicPattern: framescout/{deployment}/{camera}
+      usernameEnv: MQTT_USERNAME
+      passwordEnv: MQTT_PASSWORD
+
+  - id: audit-log
+    package: '@framescout/sink-file-ndjson'
+    config:
+      path: /var/lib/framescout/audit
+      rotateLines: 1000

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "files": [],
+  "references": [
+    { "path": "./packages/plugin-api" },
+    { "path": "./packages/core" },
+    { "path": "./packages/cli" },
+    { "path": "./packages/source-reolink-hub" },
+    { "path": "./packages/detector-megadetector-http" },
+    { "path": "./packages/detector-deepfaune-http" },
+    { "path": "./packages/individual-recognition" },
+    { "path": "./packages/detector-individual-embed" },
+    { "path": "./packages/detector-classify-http" },
+    { "path": "./packages/sink-http-multipart" },
+    { "path": "./packages/sink-mqtt" },
+    { "path": "./packages/sink-webhook" },
+    { "path": "./packages/sink-file-ndjson" },
+    { "path": "./apps/daemon" }
+  ]
+}

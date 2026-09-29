@@ -1,0 +1,47 @@
+name: api-snapshot
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'packages/plugin-api/**'
+      - '.github/workflows/api-snapshot.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-snapshot-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: api-extractor shape check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 11.1.2
+          run_install: false
+          standalone: true
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build plugin-api
+        run: pnpm -F @framescout/plugin-api build
+
+      - name: Compare api snapshot
+        # `api-extractor run` (no --local) fails if the committed snapshot
+        # at etc/plugin-api.api.md disagrees with the freshly generated
+        # one. Any unintended public-surface change blocks the PR.
+        run: pnpm -F @framescout/plugin-api api-extractor:check

@@ -1,0 +1,12 @@
+# Line-ending normalization
+* text=auto eol=lf
+
+# Lockfiles — generated, diff is noise
+pnpm-lock.yaml -diff -merge
+
+# Large binaries go through Git LFS: fixture clips and model files.
+# Images (README screenshots, docs) stay regular files — keep them small.
+*.mp4 filter=lfs diff=lfs merge=lfs -text
+*.mov filter=lfs diff=lfs merge=lfs -text
+*.onnx filter=lfs diff=lfs merge=lfs -text
+*.tflite filter=lfs diff=lfs merge=lfs -text

@@ -1,0 +1,54 @@
+name: bridge-substitution
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'packages/sink-http-multipart/**'
+      - 'packages/core/src/pipeline/**'
+      - 'packages/source-reolink-hub/**'
+      - 'apps/daemon/**'
+      - 'tests/fixtures/reolink-2026-04/**'
+      - '.github/workflows/bridge-substitution.yml'
+      - 'scripts/bridge-substitution-check.ts'
+  push:
+    branches: [main]
+    paths:
+      - 'tests/fixtures/reolink-2026-04/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bridge-sub-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: Bridge-substitution gate (V0.1-SCOPE §6)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          lfs: true
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 11.1.2
+          run_install: false
+          standalone: true
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace
+        run: pnpm build
+
+      - name: Run bridge-substitution gate
+        run: pnpm tsx scripts/bridge-substitution-check.ts

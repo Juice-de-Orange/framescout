@@ -1,0 +1,61 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# api-extractor working directory (regenerated each run)
+**/temp/
+
+# Test output
+coverage/
+.vitest-temp/
+*.lcov
+
+# Runtime data
+data/
+/var/lib/framescout/
+
+# Secrets — never commit real credentials; see .env.example
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+secrets.*
+!secrets.example.*
+.claude/settings.local.json
+.mcp.json
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Playwright runtime artefacts
+test-results/
+playwright-report/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Open-source release working files (never shipped)
+.opensource/

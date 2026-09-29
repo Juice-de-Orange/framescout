@@ -1,0 +1,38 @@
+name: studio-ui
+
+# Guards the Framescout Studio browser bundle. The studio ships a
+# pre-built Preact/Vite bundle (committed under
+# studio/framescout_studio/web/) so the app launches with only Python —
+# no Node at runtime. This job typechecks + rebuilds the source and fails
+# if the committed bundle is stale, so the two never drift.
+on:
+  pull_request:
+    branches: [main]
+    paths: ['studio/web-src/**', 'studio/framescout_studio/web/**', '.github/workflows/studio-ui.yml']
+  push:
+    branches: [main]
+    paths: ['studio/web-src/**', 'studio/framescout_studio/web/**', '.github/workflows/studio-ui.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: studio/web-src
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: studio/web-src/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - name: Fail if the committed UI bundle is stale
+        run: git diff --exit-code -- ../framescout_studio/web

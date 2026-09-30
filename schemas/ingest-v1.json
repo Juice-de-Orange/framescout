@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://framescout.dev/schemas/ingest-v1.json",
+  "$id": "https://raw.githubusercontent.com/Juice-de-Orange/framescout/main/schemas/ingest-v1.json",
   "title": "Framescout v0.1 Ingest Payload",
   "description": "JSON metadata part of the multipart HTTP-multipart sink payload. The JPEG is the multipart 'image' part. This schema is immutable for v0.1.x; a v2 introduces a new schema file 'ingest-v2.json'.",
   "type": "object",

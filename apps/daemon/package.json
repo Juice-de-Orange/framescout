@@ -28,7 +28,7 @@
     "@framescout/sink-webhook": "workspace:^",
     "@framescout/sink-file-ndjson": "workspace:^",
     "@framescout/cli": "workspace:^",
-    "yaml": "^2.6.1",
+    "yaml": "^2.9.1",
     "zod": "^3.23.0"
   }
 }

@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest==8.3.4", "httpx==0.28.1", "onnx==1.17.0", "ruff==0.8.4", "mypy==1.14.0"]
+dev = ["pytest==9.1.1", "httpx==0.28.1", "onnx==1.17.0", "ruff==0.8.4", "mypy==1.14.0"]
 
 [build-system]
 requires = ["setuptools>=68"]

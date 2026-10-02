@@ -9,7 +9,7 @@ license = { text = "Apache-2.0" }
 # the GPU stack — `pip install -e .[train]` (install the CUDA torch
 # build per https://pytorch.org for your CUDA version).
 dependencies = [
-    "onnx==1.17.0",
+    "onnx==1.22.0",
     "onnxruntime==1.20.1",
     "pillow==11.1.0",
     "numpy==2.2.1",

@@ -289,6 +289,9 @@ describe('HttpMultipartSink — framescout-v1 (default)', () => {
     );
     await sink.init();
     await expect(sink.deliver(PAYLOAD, ac.signal)).rejects.toThrow();
+    // Nothing may be sent: a request started with an aborted signal is what
+    // made undici reject unhandled on Node 24.
+    expect(rig.captured).toHaveLength(0);
   });
 });
 

@@ -63,6 +63,15 @@ export class HttpMultipartSink implements Sink {
   async stop(): Promise<void> {}
 
   async deliver(payload: SinkPayload, abortSignal: AbortSignal): Promise<void> {
+    // Do not start a request that is already cancelled. Handing fetch() an
+    // aborted signal together with a FormData body makes undici (Node 24) keep
+    // streaming the body into a closed stream, which surfaces as an unhandled
+    // rejection -- and an unhandled rejection ends a Node process by default.
+    if (abortSignal.aborted) {
+      this.ctx.metric('deliveries', 1, { outcome: 'error' });
+      throw abortSignal.reason ?? new Error('aborted');
+    }
+
     const form =
       this.config.wireFormat === 'bulletin-v1'
         ? buildBulletinForm(payload)

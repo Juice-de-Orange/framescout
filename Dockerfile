@@ -8,7 +8,7 @@
 # ─── Stage 1: deps ────────────────────────────────────────────────────
 # Resolve the entire pnpm workspace once. Heavy step; cached on
 # package.json + pnpm-lock.yaml changes.
-FROM node:22-alpine@sha256:8ea2348b068a9544dae7317b4f3aafcdc032df1647bb7d768a05a5cad1a7683f AS deps
+FROM node:26-alpine@sha256:0b36e8c136b94cd4fcf02188228e76c31ad5872eef3fec8cbd2eee500cfd9e80 AS deps
 ENV PNPM_HOME=/pnpm \
     PATH=/pnpm:$PATH \
     CI=true
@@ -46,7 +46,7 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 # ─── Stage 4: runtime ─────────────────────────────────────────────────
 # Minimal runtime image. Non-root, ffmpeg (clip decoding), tini (PID 1
 # signal forwarding), nothing else.
-FROM node:22-alpine@sha256:8ea2348b068a9544dae7317b4f3aafcdc032df1647bb7d768a05a5cad1a7683f AS runtime
+FROM node:26-alpine@sha256:0b36e8c136b94cd4fcf02188228e76c31ad5872eef3fec8cbd2eee500cfd9e80 AS runtime
 LABEL org.opencontainers.image.source="https://github.com/Juice-de-Orange/framescout" \
       org.opencontainers.image.description="Framescout daemon: wildlife-camera frame pipeline" \
       org.opencontainers.image.licenses="Apache-2.0"

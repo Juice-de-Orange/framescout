@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -89,5 +89,77 @@ describe('framescout models verify', () => {
     expect(
       parsed.find((e) => e.name === 'framescout-classifier-v1')?.status,
     ).toBe('not-pinned');
+  });
+});
+
+describe('framescout models — default data directory', () => {
+  async function configWithDataDir(dataDir: string): Promise<string> {
+    const dir = await tmp();
+    const cfgPath = join(dir, 'config.yaml');
+    await writeFile(
+      cfgPath,
+      `
+framescout:
+  dataDir: ${dataDir}
+  metricsPort: 0
+deployments:
+  - id: d1
+    cameras:
+      - id: cam1
+sources: []
+detectors: []
+sinks: []
+`,
+      'utf-8',
+    );
+    return cfgPath;
+  }
+
+  it('verify without --to looks in <dataDir>/models of the config', async () => {
+    const dataDir = await tmp();
+    const cfgPath = await configWithDataDir(dataDir);
+    const r = captureIO();
+    await runCli(['models', 'verify', '--config', cfgPath, '--json'], r.io);
+    const parsed = JSON.parse(r.stdout()) as Array<{ name: string; path: string }>;
+    expect(parsed.find((e) => e.name === 'dinov2-small')?.path).toBe(
+      join(dataDir, 'models', 'dinov2-small.onnx'),
+    );
+    expect(r.stderr()).toBe('');
+  });
+
+  it('--to still wins over the config', async () => {
+    const cfgPath = await configWithDataDir(await tmp());
+    const other = await tmp();
+    const r = captureIO();
+    await runCli(['models', 'verify', '--config', cfgPath, '--to', other, '--json'], r.io);
+    const parsed = JSON.parse(r.stdout()) as Array<{ name: string; path: string }>;
+    expect(parsed.find((e) => e.name === 'dinov2-small')?.path).toBe(
+      join(other, 'models', 'dinov2-small.onnx'),
+    );
+  });
+
+  it('falls back to the current directory, and says so, when there is no config', async () => {
+    const dir = await tmp();
+    const r = captureIO();
+    await runCli(
+      ['models', 'verify', '--config', join(dir, 'missing.yaml'), '--json'],
+      r.io,
+    );
+    const parsed = JSON.parse(r.stdout()) as Array<{ name: string; path: string }>;
+    expect(parsed.find((e) => e.name === 'dinov2-small')?.path).toBe(
+      join(process.cwd(), 'models', 'dinov2-small.onnx'),
+    );
+    expect(r.stderr()).toMatch(/no config at .*missing\.yaml; using the current directory/);
+  });
+
+  it('refuses to guess when the config exists but does not load', async () => {
+    const dir = await tmp();
+    const cfgPath = join(dir, 'config.yaml');
+    await writeFile(cfgPath, 'framescout: [not, a, mapping]\n', 'utf-8');
+    const r = captureIO();
+    const code = await runCli(['models', 'fetch', 'dinov2-small', '--config', cfgPath], r.io);
+    expect(code).toBe(ExitCode.ConfigValidation);
+    expect(r.stderr()).toMatch(/failed to load .*config\.yaml/);
+    expect(r.stderr()).toContain('--to <dataDir>');
   });
 });

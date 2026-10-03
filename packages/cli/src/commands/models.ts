@@ -1,3 +1,4 @@
+import { stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import {
@@ -5,7 +6,9 @@ import {
   ChecksumMismatchError,
   KNOWN_BACKBONES,
   UnknownBackboneError,
+  describeError,
   fetchModel,
+  loadConfig,
   verifyModels,
 } from '@framescout/core';
 
@@ -52,14 +55,57 @@ export function cmdModelsList(opts: ModelsListOptions, io: CliIO): number {
 
 export interface ModelsFetchOptions {
   to?: string;
+  config?: string;
   pin?: boolean;
   json?: boolean;
 }
 
 /**
+ * Where the model cache lives. `--to <dir>` wins. Without it the
+ * directory is `framescout.dataDir` from `config.yaml` (`--config`,
+ * default `./config.yaml` like every other subcommand) — the directory
+ * the daemon reads its models from, so a fetched model is actually the
+ * one the daemon finds. Only when there is no config file at all does it
+ * fall back to the current directory, and says so.
+ *
+ * Returns `undefined` (after printing why) when a config file exists but
+ * cannot be loaded: guessing a directory then would put the model
+ * somewhere the daemon never looks.
+ */
+async function resolveModelsDataDir(
+  opts: { to?: string; config?: string },
+  io: CliIO,
+): Promise<string | undefined> {
+  if (opts.to !== undefined) return resolve(opts.to);
+  const configPath = resolve(opts.config ?? './config.yaml');
+  const exists = await stat(configPath).then(
+    (s) => s.isFile(),
+    () => false,
+  );
+  if (!exists) {
+    io.err(
+      `models: no config at ${configPath}; using the current directory ` +
+        `(${resolve('.', 'models')}). Pass --config <path> or --to <dataDir>.\n`,
+    );
+    return resolve('.');
+  }
+  try {
+    const config = await loadConfig(configPath);
+    return resolve(config.framescout.dataDir);
+  } catch (err) {
+    io.err(
+      `models: failed to load ${configPath}: ${describeError(err)}\n` +
+        `  Pass --to <dataDir> to name the directory explicitly.\n`,
+    );
+    return undefined;
+  }
+}
+
+/**
  * `framescout models fetch <name>` — download a backbone into
- * `<to>/models/<name>.onnx` (default `<to>` is `./<dataDir>` or the
- * cwd) with SHA256 verification.
+ * `<dataDir>/models/<name>.onnx` with SHA256 verification. `<dataDir>`
+ * is `--to`, else the config's `framescout.dataDir`, else the cwd (see
+ * {@link resolveModelsDataDir}).
  *
  * `--pin` switches off the SHA check so the maintainer can compute
  * the digest for an unpinned entry; the digest is printed so it can
@@ -70,7 +116,8 @@ export async function cmdModelsFetch(
   opts: ModelsFetchOptions,
   io: CliIO,
 ): Promise<number> {
-  const dataDir = resolve(opts.to ?? '.');
+  const dataDir = await resolveModelsDataDir(opts, io);
+  if (dataDir === undefined) return ExitCode.ConfigValidation;
   try {
     const result = await fetchModel(name, {
       dataDir,
@@ -112,6 +159,7 @@ export async function cmdModelsFetch(
 
 export interface ModelsVerifyOptions {
   to?: string;
+  config?: string;
   json?: boolean;
 }
 
@@ -123,7 +171,8 @@ export async function cmdModelsVerify(
   opts: ModelsVerifyOptions,
   io: CliIO,
 ): Promise<number> {
-  const dataDir = resolve(opts.to ?? '.');
+  const dataDir = await resolveModelsDataDir(opts, io);
+  if (dataDir === undefined) return ExitCode.ConfigValidation;
   const report = await verifyModels(dataDir);
   if (opts.json === true) {
     io.out(`${JSON.stringify(report, null, 2)}\n`);

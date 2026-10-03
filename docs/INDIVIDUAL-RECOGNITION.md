@@ -257,16 +257,25 @@ but indispensable for scripted / offline / airgap bootstrap.
 ```
 framescout models list                              # show known short-names + status
 framescout models fetch dinov2-small                # download to <dataDir>/models/
-framescout models fetch dinov2-small --to ./mirror  # alternate target dir
+framescout models fetch dinov2-small --to ./mirror  # other data dir: writes ./mirror/models/
 framescout models verify                            # re-check sha256 of every cached model
 ```
+
+`<dataDir>` is `framescout.dataDir` from the config file (`--config
+<path>`, default `./config.yaml` — in the container that is
+`/app/config.yaml`, so `docker compose exec framescout framescout models
+fetch dinov2-small` writes into the data volume the daemon reads).
+`--to <dir>` names another data directory; the file always lands in
+`<dir>/models/`. With neither `--to` nor a config file the command uses
+the current directory and prints a note saying so.
 
 The daemon's auto-fetch path (run on first start when `backbone.kind`
 is a known short-name and the file isn't cached) calls the same
 internal `fetchModel(kind, opts)` function — single code path, single
 checksum table. Airgap deployments pre-populate `<dataDir>/models/`
-via `framescout models fetch --to <mounted-volume>/models` before
-starting the daemon; the auto-fetch is then a no-op.
+via `framescout models fetch <name> --to <mounted-volume>` (the
+directory that is mounted as `dataDir`) before starting the daemon; the
+auto-fetch is then a no-op.
 
 The checksum table lives in `packages/core/src/models/registry.ts`,
 versioned alongside the daemon. Adding a new short-name backbone is a

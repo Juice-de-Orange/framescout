@@ -98,13 +98,17 @@ export function buildCli(io: CliIO = defaultIO): Command {
     .command('fetch')
     .description('Download a backbone with SHA256 verification')
     .argument('<name>', 'short-name from `framescout models list`')
-    .option('--to <dir>', 'dataDir (writes to <dir>/models/<name>.onnx)', '.')
+    .option(
+      '--to <dir>',
+      'dataDir (writes to <dir>/models/<name>.onnx); default: framescout.dataDir from the config',
+    )
+    .option('--config <path>', 'config.yaml path', './config.yaml')
     .option('--pin', 'skip SHA verify + print the computed hash (maintainer use)')
     .option('--json', 'machine-readable JSON output')
     .action(
       async (
         name: string,
-        opts: { to: string; pin?: boolean; json?: boolean },
+        opts: { to?: string; config: string; pin?: boolean; json?: boolean },
       ) => {
         const code = await cmdModelsFetch(name, opts, io);
         process.exitCode = code;
@@ -113,9 +117,13 @@ export function buildCli(io: CliIO = defaultIO): Command {
   models
     .command('verify')
     .description('Re-check SHA256 of every cached backbone')
-    .option('--to <dir>', 'dataDir (reads <dir>/models/*.onnx)', '.')
+    .option(
+      '--to <dir>',
+      'dataDir (reads <dir>/models/*.onnx); default: framescout.dataDir from the config',
+    )
+    .option('--config <path>', 'config.yaml path', './config.yaml')
     .option('--json', 'machine-readable JSON output')
-    .action(async (opts: { to: string; json?: boolean }) => {
+    .action(async (opts: { to?: string; config: string; json?: boolean }) => {
       const code = await cmdModelsVerify(opts, io);
       process.exitCode = code;
     });

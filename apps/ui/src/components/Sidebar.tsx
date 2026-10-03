@@ -36,7 +36,9 @@ export function Sidebar({ daemon, onLoggedOut }: Props): preact.JSX.Element {
   const sinkSummary = (() => {
     if (!state) return undefined;
     const total = state.sinks.length;
-    const healthy = state.sinks.filter((s) => s.breakerState === 'closed').length;
+    const healthy = state.sinks.filter(
+      (s) => s.initialised && s.breakerState === 'closed',
+    ).length;
     const queueDepthSum = state.sinks.reduce((acc, s) => acc + s.queueDepth, 0);
     return { total, healthy, queueDepthSum };
   })();

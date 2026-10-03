@@ -24,13 +24,15 @@ export function SinkCard({ sink }: Props): preact.JSX.Element {
 
   return (
     <article
-      class={`sink-card sink-${sink.breakerState}`}
+      class={`sink-card sink-${sink.initialised ? sink.breakerState : 'not-initialised'}`}
       data-testid="sink-card"
       data-instance-id={sink.instanceId}
     >
       <header>
         <strong>{sink.instanceId}</strong>
-        <span class="badge">{sink.breakerState}</span>
+        <span class="badge">
+          {sink.initialised ? sink.breakerState : 'not initialised'}
+        </span>
       </header>
       <dl>
         <dt>queue</dt>

@@ -5,10 +5,23 @@
 // stubs with ffmpeg + Tenengrad.
 
 export {
+  initPlugin,
   loadPlugin,
+  preparePlugin,
   type LoadPluginOptions,
   type LoadedPlugin,
 } from './loader.js';
+export {
+  DEFAULT_INIT_BACKOFF,
+  initWithRetry,
+  PluginInitTracker,
+  type InitAttemptFailure,
+  type InitBackoff,
+  type InitWithRetryHandle,
+  type InitWithRetryOptions,
+  type PluginInitListener,
+  type PluginInitStatus,
+} from './plugin-init.js';
 export {
   createPluginContext,
   type CreatePluginContextOptions,

@@ -216,7 +216,7 @@ detectors:
 | `package`                          | string   | (required)                                       | |
 | `config`                           | object   | (required)                                       | |
 | `overflow.policy`                  | enum     | `drop-oldest`                                    | `drop-oldest` or `block`. `spool-to-disk` is on the v0.2 roadmap. |
-| `overflow.queueSize`               | integer  | `64`                                             | In-memory queue per sink before `policy` kicks in. |
+| `overflow.queueSize`               | integer  | `64`                                             | In-memory queue per sink before `policy` kicks in. Also holds the observations for a sink that is not initialised yet (broker unreachable at startup) until it is. |
 | `circuitBreaker.failureThreshold`  | integer  | `5`                                              | Consecutive failures before the breaker opens. |
 | `circuitBreaker.cooldownMs`        | integer  | `30000`                                          | Open-state cooldown before a single probe re-tests. |
 
@@ -299,5 +299,5 @@ Exposed on `framescout.metricsPort` (default 9090):
 | Endpoint    | Behaviour                                                              |
 |-------------|------------------------------------------------------------------------|
 | `/healthz`  | Always 200 once the process is up — Kubernetes liveness probe target.  |
-| `/readyz`   | 200 once every plugin's `init()` resolved; 503 otherwise.              |
+| `/readyz`   | 200 once every plugin's `init()` resolved; 503 otherwise. While a source or sink cannot reach its peer the daemon keeps retrying and the body names the plugin and the cause. |
 | `/metrics`  | Prometheus text exposition: Node process metrics + the eight `framescout_*` metrics from ARCHITECTURE.md §9, plus `framescout_plugin_*` counters that plugins emit via `ctx.metric()`. |

@@ -75,3 +75,40 @@ describe('startHttpServer — extra routes', () => {
     expect(res.status).toBe(500);
   });
 });
+
+describe('startHttpServer — /readyz', () => {
+  it('answers 503 with one line per reason while not ready, 200 once ready', async () => {
+    const { registry } = createMetricsRegistry({ includeDefaults: false });
+    let ready = false;
+    server = await startHttpServer({
+      port: 0,
+      host: '127.0.0.1',
+      registry,
+      readyState: {
+        isReady: () => ready,
+        notReadyReasons: () => ['sink "mqtt-ha" not initialised: getaddrinfo ENOTFOUND broker.invalid'],
+      },
+    });
+    baseUrl = `http://${server.address.host}:${server.address.port}`;
+
+    const notReady = await fetch(`${baseUrl}/readyz`);
+    expect(notReady.status).toBe(503);
+    expect(await notReady.text()).toBe(
+      'not ready\nsink "mqtt-ha" not initialised: getaddrinfo ENOTFOUND broker.invalid\n',
+    );
+    // Liveness is not readiness: the process is up.
+    expect((await fetch(`${baseUrl}/healthz`)).status).toBe(200);
+
+    ready = true;
+    const ok = await fetch(`${baseUrl}/readyz`);
+    expect(ok.status).toBe(200);
+    expect(await ok.text()).toBe('ready\n');
+  });
+
+  it('keeps the plain body for a ReadyState without reasons', async () => {
+    await startWith();
+    const res = await fetch(`${baseUrl}/readyz`);
+    expect(res.status).toBe(503);
+    expect(await res.text()).toBe('not ready\n');
+  });
+});

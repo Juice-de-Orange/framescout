@@ -37,26 +37,63 @@ loader gates against `API_VERSION` and refuses to import code from
 incompatible plugins. Pin a compatible plugin version, or upgrade
 Framescout to satisfy the plugin's range.
 
-### `InitFailed: Plugin "…" init() threw an error`
+### `plugin init failed; retrying` / `/readyz` names a plugin
 
-Exit code 1, a few seconds after start; under `restart: unless-stopped`
-the container then restarts in a loop and neither `/healthz` nor the UI
-answers. A **source or sink** could not be reached while the daemon was
-starting — the Reolink source contacts the hub and the MQTT sink
-connects to the broker in `init()`, and a failure there is fatal. The
-message names the plugin and the cause, e.g.
+The daemon is up (`/healthz` 200, UI reachable, container not
+restarting) but `/readyz` answers 503. A **source or sink** could not
+reach its peer — the Reolink source logs in to the hub and the MQTT sink
+connects to the broker in `init()`. That is not fatal: the daemon
+retries `init()` in the background, 5 s after the first failure, then
+after 10 s, 20 s, … up to every 5 min, and logs one line per attempt:
 
 ```
-InitFailed: Plugin "@framescout/source-reolink-hub" init() threw an error.: fetch failed: Connect Timeout Error (attempted address: 192.0.2.50:443, timeout: 10000ms)
-InitFailed: Plugin "@framescout/sink-mqtt" init() threw an error.: getaddrinfo ENOTFOUND homeassistant.local
+{"level":40,"time":"2026-10-03T17:09:43.643Z","service":"framescout","plugin":"reolink-1","kind":"source","package":"@framescout/source-reolink-hub","attempt":1,"retryInMs":5000,"cause":"Plugin \"@framescout/source-reolink-hub\" init() threw an error: fetch failed: connect EHOSTUNREACH 192.0.2.50:443","msg":"plugin init failed; retrying"}
+{"level":40,"time":"2026-10-03T17:09:44.018Z","service":"framescout","plugin":"mqtt-ha","kind":"sink","package":"@framescout/sink-mqtt","attempt":1,"retryInMs":5000,"cause":"Plugin \"@framescout/sink-mqtt\" init() threw an error: getaddrinfo ENOTFOUND homeassistant.local","msg":"plugin init failed; retrying"}
 ```
 
-The `config.yaml` shipped in the repository contains exactly these two
+`curl http://localhost:9090/readyz` and the UI's **Operator** page
+(*Plugins not initialised*) show the same cause, the attempt count and
+the time of the next attempt;
+`framescout_plugin_disabled{reason="init-failed"}` is `1` for the
+plugin. Once the peer answers, the plugin logs
+`plugin initialised after retry` and `/readyz` turns `ready` — no
+restart needed. To retry at once, restart the daemon.
+
+While it waits:
+
+- a **source** emits nothing;
+- a **sink** is not called. Observations for it wait in its queue
+  (`overflow.queueSize`, default 64) and are delivered when it comes up.
+  When the queue is full, `overflow.policy` applies as usual:
+  `drop-oldest` discards the oldest and counts it in
+  `framescout_sink_dropped_total{reason="queue_full"}` (one
+  `sink not initialised and its queue is full` warning), `block` stalls
+  the pipeline — including the other sinks — until the sink is up.
+  Whatever is still queued at shutdown is dropped and counted with
+  `reason="not_initialised"`.
+
+The `config.yaml` shipped in the repository contains exactly two such
 placeholder hosts (`https://192.0.2.50` and
 `mqtt://homeassistant.local`); replace them with your hub and broker,
-or delete the entries you do not use, before the first start. Detector
-endpoints are not contacted at startup — a wrong detector URL shows up
-later as `detector failed; continuing …` on every event.
+or delete the entries you do not use. A wrong hub password
+(`reolink login failed: code …`) is retried the same way, since the
+daemon cannot tell it from a hub that is still booting — fix
+`REOLINK_PASSWORD` and restart.
+
+Detector endpoints are not contacted at startup — a wrong detector URL
+shows up later as `detector failed; continuing …` on every event.
+
+### `reolink-hub: passwordEnv "…" is empty` / `InitFailed` for a detector
+
+Exit code 1. These are configuration errors, which waiting cannot fix,
+so they stay fatal: an invalid plugin `config:` block
+(`ConfigValidationError`), an unknown plugin package, the Reolink
+source's password variable being unset or empty, and a **detector**
+whose `init()` fails (built-in detectors only read local files there —
+e.g. a missing model for `detector-individual-embed`). The last line on
+stderr (`framescout daemon: fatal: …`) names the plugin and the cause.
+Under `restart: unless-stopped` the container restarts in a loop until
+the configuration is fixed.
 
 ### `Unrecognized key(s) in object: '…'`
 
@@ -198,10 +235,11 @@ v1.0 feature (ARCHITECTURE.md §10).
 
 ### `/readyz` returns 503 long after `/healthz` is 200
 
-A Source's `init()` failed or its first `source.heartbeat` metric
-hasn't fired within `readinessHeartbeatWindowMs` (default 60 s).
-Check the per-source log lines for the heartbeat warning and the
-initial poll attempt.
+A source's or sink's `init()` keeps failing — the response body names
+the plugin and the cause; see
+[`plugin init failed; retrying`](#plugin-init-failed-retrying--readyz-names-a-plugin).
+`/readyz` is also 503 for the first seconds of startup and during
+shutdown (body `not ready` only).
 
 ### `/metrics` payload is huge
 

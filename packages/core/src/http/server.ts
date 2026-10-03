@@ -44,7 +44,8 @@ export interface HttpServerHandle {
  * footprint should match (FOUNDATION.md ADR-03).
  *
  *   GET /healthz   → 200 once the server is up (liveness)
- *   GET /readyz    → 200 if `readyState.isReady()` else 503
+ *   GET /readyz    → 200 if `readyState.isReady()` else 503; the 503
+ *                    body is `not ready` plus one line per reason
  *   GET /metrics   → Prometheus text exposition of the passed `registry`
  *   <opts.routes>  → caller-supplied API / UI routes
  *
@@ -64,7 +65,13 @@ export async function startHttpServer(
     if (opts.readyState.isReady()) {
       respond(res, 200, 'text/plain; charset=utf-8', 'ready\n');
     } else {
-      respond(res, 503, 'text/plain; charset=utf-8', 'not ready\n');
+      const reasons = opts.readyState.notReadyReasons?.() ?? [];
+      respond(
+        res,
+        503,
+        'text/plain; charset=utf-8',
+        ['not ready', ...reasons].map((line) => `${line}\n`).join(''),
+      );
     }
   });
   router.get('/metrics', async (_req, res) => {

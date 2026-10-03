@@ -156,17 +156,30 @@ export interface PluginFactory<TConfig, TPlugin> {
 }
 
 export interface PluginLifecycle {
-  init(): Promise<void>;     // connect, authenticate, probe — fail fast
+  init(): Promise<void>;     // connect, authenticate, probe — reject if the peer is not there
   start(): Promise<void>;    // begin emitting/accepting work
   stop(): Promise<void>;     // graceful shutdown within abortSignal grace
 }
 ```
 
 Three lifecycle hooks — modeled after Telegraf's `Init`/`Start`/`Stop`,
-refined by Fastify's `onClose` contract. `init` is for connectivity probes
-(throw to abort startup); `start` is for "begin work" (Sources begin
-iterating, Sinks open queues); `stop` is for graceful shutdown within a
-configurable grace period.
+refined by Fastify's `onClose` contract. `init` is for connectivity probes;
+`start` is for "begin work" (Sources begin iterating, Sinks open queues);
+`stop` is for graceful shutdown within a configurable grace period.
+
+**What a failing `init()` means depends on the plugin kind.** For a
+Source or a Sink it means "peer not reachable (yet)": the daemon starts
+anyway and calls `init()` on the same instance again — after 5 s, then
+doubling up to every 5 min — until it resolves. `init()` therefore has
+to be callable again after it rejected; it is never run twice at the
+same time (a call that exceeded the timeout is awaited, not doubled),
+and `stop()` is not called on an instance whose `init()` never
+succeeded. Until then the Source's `events()` is not iterated and the
+Sink's `deliver()` is not called (§6.5). A Detector's `init()` failure
+aborts startup, as does everything before `init()`: manifest gate,
+config validation and `factory.create()`. A plugin that wants a
+configuration problem (e.g. an empty credential variable) to be fatal
+rather than retried throws from `create()`.
 
 **State migration between plugin versions is the plugin author's
 responsibility.** The core does not provide a migration framework.
@@ -367,6 +380,10 @@ async function loadPlugin(pkgName: string, instanceCfg: unknown, ctx: PluginCont
 }
 ```
 
+The daemon runs steps 1–5 up to `create()` for every plugin and treats
+a failure as fatal. `init()` of a Detector is fatal too; `init()` of a
+Source or Sink is retried in the background (§5.2).
+
 ## 6. Pipeline architecture
 
 ### 6.1 Runtime shape: async-iterator chain
@@ -474,6 +491,18 @@ sink outages configure `drop-oldest` with a large `queueSize` (e.g.,
 Circuit breaker opens after 5 consecutive failures, cools down for 30 s,
 half-opens with a single probe. Drops during open state increment
 `framescout_sink_dropped_total{sink, reason="circuit_open"}`.
+
+**A Sink that is not initialised yet** (its `init()` is still being
+retried, §5.2) is not called at all, so it produces neither delivery
+errors nor breaker trips. Its queue holds the payloads and the same
+overflow policy applies once the queue is full: `drop-oldest` discards
+the oldest payload (`reason="queue_full"`, plus one warning in the
+log), `block` back-pressures the pipeline until the Sink is up. When
+`init()` succeeds the queue is delivered in order. Payloads still
+queued at shutdown are dropped with `reason="not_initialised"`. This is
+kinder than a Sink that fails at delivery time — there every payload is
+attempted once and lost — because nothing is consumed before the Sink
+can take it.
 
 #### 6.5.1 Spool-to-disk file format — v0.2 design (deferred)
 
@@ -706,7 +735,7 @@ propagation, one-way to Detector services.)
 | Endpoint     | Returns 200 when                                                |
 |--------------|-----------------------------------------------------------------|
 | `/healthz`   | Process is up (liveness — always 200 if the daemon is running). |
-| `/readyz`    | Every plugin's `init()` resolved AND each Source has emitted at least one `source.heartbeat` metric within `readinessHeartbeatWindowMs` (default 60000). Returns 503 otherwise. |
+| `/readyz`    | Every plugin's `init()` resolved. Returns 503 otherwise; while a Source or Sink `init()` is being retried the body lists each such plugin with the cause. (The per-Source `source.heartbeat` condition of the original design is not implemented.) |
 | `/metrics`   | Prometheus scrape endpoint. Always 200 if `metricsPort` > 0.    |
 
 Port is configurable via `framescout.metricsPort` in config.yaml (default

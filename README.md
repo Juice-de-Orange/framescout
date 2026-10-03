@@ -80,13 +80,16 @@ $EDITOR config.yaml           # set the hub address, cameras and sinks
 docker compose up --build     # builds the daemon image from source
 ```
 
-**Replace the placeholders in `config.yaml` before the first start.** The shipped file points at
-two hosts that do not exist on your network — the hub (`https://192.0.2.50`) and the MQTT broker
-(`mqtt://homeassistant.local`) — and at detector endpoints on `localhost`. A source or sink that
-cannot be reached at startup is fatal: the daemon logs
-`InitFailed: Plugin "…" init() threw an error`, exits with code 1 and the container restarts in a
-loop, so the UI never comes up. Set real addresses or delete the entries you do not use
-([troubleshooting](docs/troubleshooting.md#the-daemon-wont-start)).
+**Replace the placeholders in `config.yaml`.** The shipped file points at two hosts that do not
+exist on your network — the hub (`https://192.0.2.50`) and the MQTT broker
+(`mqtt://homeassistant.local`) — and at detector endpoints on `localhost`. The daemon starts
+anyway: a source or sink that cannot be reached is retried in the background (after 5 s, then
+doubling up to every 5 min) while the UI, `/healthz` and `/metrics` are up. Until it answers,
+`/readyz` returns 503 with the plugin and the cause, the **Operator** page lists it under
+*Plugins not initialised*, and the log has one `plugin init failed; retrying` line per attempt.
+Set real addresses or delete the entries you do not use, then restart
+([troubleshooting](docs/troubleshooting.md#plugin-init-failed-retrying--readyz-names-a-plugin)).
+`REOLINK_PASSWORD` must be set — a missing password is a configuration error and stops the daemon.
 
 Then open <http://localhost:9090/ui> and log in with the token the daemon generated on first start:
 `docker compose exec framescout cat /var/lib/framescout/.ui-token`.

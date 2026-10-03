@@ -14,6 +14,8 @@ export interface SinkInfo {
   readonly queueDepth: number;
   readonly queueSize: number;
   readonly breakerState: CircuitState;
+  /** `false` while the sink's `init()` has not succeeded yet — nothing is delivered, the queue only fills. */
+  readonly initialised: boolean;
   readonly droppedTotal: number;
   readonly deliveredTotal: number;
   readonly errorsTotal: number;
@@ -35,6 +37,13 @@ export interface BoundedSinkWrapperOptions {
   readonly logger: Logger;
   /** Forwarded to `sink.deliver()`. */
   readonly abortSignal: AbortSignal;
+  /**
+   * `false` when the sink's `init()` has not succeeded yet (the daemon
+   * retries it in the background). The wrapper then accepts payloads
+   * but delivers nothing until {@link BoundedSinkWrapper.markInitialised}
+   * is called. Default `true`.
+   */
+  readonly initialised?: boolean;
 }
 
 const DEFAULTS = {
@@ -53,15 +62,28 @@ const DEFAULTS = {
  * graceful drain. The internal worker loop pumps the queue through the
  * underlying `sink.deliver()` and emits the canonical
  * `framescout_sink_*` Prometheus metrics.
+ *
+ * A sink that is not initialised yet is never called. Its queue holds
+ * the payloads until `markInitialised()`, and the overflow policy
+ * decides what happens once the queue is full: `drop-oldest` keeps the
+ * newest `queueSize` payloads and counts every drop
+ * (`reason="queue_full"`), `block` makes the pipeline wait. Payloads
+ * still queued at shutdown are dropped and counted
+ * (`reason="not_initialised"`).
  */
 export class BoundedSinkWrapper {
   private readonly opts: Required<
-    Omit<BoundedSinkWrapperOptions, 'metrics' | 'logger' | 'abortSignal' | 'sink' | 'instanceId'>
+    Omit<
+      BoundedSinkWrapperOptions,
+      'metrics' | 'logger' | 'abortSignal' | 'sink' | 'instanceId' | 'initialised'
+    >
   > &
     Pick<BoundedSinkWrapperOptions, 'metrics' | 'logger' | 'abortSignal' | 'sink' | 'instanceId'>;
   private readonly breaker: CircuitBreaker;
   private readonly queue: SinkPayload[] = [];
   private closed = false;
+  private initialised: boolean;
+  private overflowWarned = false;
   private wakeConsumer: (() => void) | undefined;
   private wakeProducer: (() => void) | undefined;
   private readonly workerPromise: Promise<void>;
@@ -78,6 +100,7 @@ export class BoundedSinkWrapper {
       policy: rawOpts.policy ?? DEFAULTS.policy,
       circuitBreaker: rawOpts.circuitBreaker ?? DEFAULTS.circuitBreaker,
     };
+    this.initialised = rawOpts.initialised ?? true;
     this.breaker = new CircuitBreaker(this.opts.circuitBreaker);
     this.workerPromise = this.workerLoop();
   }
@@ -97,7 +120,9 @@ export class BoundedSinkWrapper {
           { sink: this.opts.instanceId, reason: 'queue_full' },
           1,
         );
+        this.warnOverflowWhileNotInitialised('dropping the oldest observation');
       } else {
+        this.warnOverflowWhileNotInitialised('the pipeline waits for the sink');
         // 'block'
         while (
           this.queue.length >= this.opts.queueSize &&
@@ -134,6 +159,25 @@ export class BoundedSinkWrapper {
     await this.workerPromise;
   }
 
+  /**
+   * The sink's `init()` succeeded: start delivering, beginning with
+   * whatever was queued in the meantime. Idempotent.
+   */
+  markInitialised(): void {
+    if (this.initialised) return;
+    this.initialised = true;
+    this.overflowWarned = false;
+    if (this.queue.length > 0) {
+      this.opts.logger.info(
+        { sink: this.opts.instanceId, queued: this.queue.length },
+        'sink initialised; delivering queued observations',
+      );
+    }
+    this.notify();
+    this.wakeConsumer?.();
+    this.wakeConsumer = undefined;
+  }
+
   /** Diagnostic. */
   get queueDepth(): number {
     return this.queue.length;
@@ -161,6 +205,7 @@ export class BoundedSinkWrapper {
       queueDepth: this.queue.length,
       queueSize: this.opts.queueSize,
       breakerState: this.breaker.getState(),
+      initialised: this.initialised,
       droppedTotal: this.droppedTotal,
       deliveredTotal: this.deliveredTotal,
       errorsTotal: this.errorsTotal,
@@ -199,8 +244,50 @@ export class BoundedSinkWrapper {
     }
   }
 
+  /** One line per not-initialised period, not one per observation. */
+  private warnOverflowWhileNotInitialised(consequence: string): void {
+    if (this.initialised || this.overflowWarned) return;
+    this.overflowWarned = true;
+    this.opts.logger.warn(
+      {
+        sink: this.opts.instanceId,
+        policy: this.opts.policy,
+        queueSize: this.opts.queueSize,
+      },
+      `sink not initialised and its queue is full; ${consequence}`,
+    );
+  }
+
+  /** Shutdown with a sink that never initialised: nothing can be delivered. */
+  private dropQueueNotInitialised(): void {
+    const count = this.queue.length;
+    if (count === 0) return;
+    this.queue.length = 0;
+    this.droppedTotal += count;
+    this.opts.metrics.sinkDroppedTotal.inc(
+      { sink: this.opts.instanceId, reason: 'not_initialised' },
+      count,
+    );
+    this.opts.metrics.sinkQueueDepth.set({ sink: this.opts.instanceId }, 0);
+    this.opts.logger.warn(
+      { sink: this.opts.instanceId, dropped: count },
+      'sink never initialised; dropping queued observations at shutdown',
+    );
+    this.notify();
+  }
+
   private async workerLoop(): Promise<void> {
     while (!this.closed || this.queue.length > 0) {
+      if (!this.initialised) {
+        if (this.closed) {
+          this.dropQueueNotInitialised();
+          break;
+        }
+        await new Promise<void>((resolve) => {
+          this.wakeConsumer = resolve;
+        });
+        continue;
+      }
       if (this.queue.length === 0) {
         await new Promise<void>((resolve) => {
           this.wakeConsumer = resolve;

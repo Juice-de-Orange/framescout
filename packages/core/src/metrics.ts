@@ -220,4 +220,9 @@ export class ManualReadyState {
 
 export interface ReadyState {
   isReady(): boolean;
+  /**
+   * Why `isReady()` is false, one line each (e.g. a plugin whose
+   * `init()` keeps failing). `/readyz` appends them to its 503 body.
+   */
+  notReadyReasons?(): readonly string[];
 }

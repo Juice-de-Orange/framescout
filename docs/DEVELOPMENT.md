@@ -102,7 +102,7 @@ bundle — CI fails on a stale one.
 | Symptom | Cause | Fix |
 |---|---|---|
 | Login in the operator UI answers 403 `forbidden_origin` | The browser's origin (host:port) is not the daemon's own, e.g. a remapped Docker port | Access the UI on the daemon's port, or add the origin to `framescout.ui.allowedOrigins` / `allowedHosts` |
-| Daemon exits right after start with `InitFailed … source-reolink-hub` | The hub in `config.yaml` is unreachable (the examples use the placeholder `192.0.2.50`) | Set your hub's address, or use the stub setup above |
+| `/readyz` answers 503 naming `reolink-1`; log repeats `plugin init failed; retrying` | The hub in `config.yaml` is unreachable (the examples use the placeholder `192.0.2.50`); the daemon keeps running and retries | Set your hub's address, or use the stub setup above |
 | `EACCES … .ui-token` on start | Bind-mounted data directory not writable by uid 1001 | Use the named volume or `chown 1001:1001` the directory |
 | Decode tests reported as skipped | `ffmpeg` not installed | Install ffmpeg |
 | Container stays `unhealthy` | Healthcheck cannot reach `/healthz` | The healthcheck probes `METRICS_PORT` (default 9090). If you changed the port only in `config.yaml`, set `METRICS_PORT` to the same value |

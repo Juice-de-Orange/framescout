@@ -190,14 +190,6 @@ Then:
 docker compose up -d
 ```
 
-The hub and the MQTT broker must be reachable at this point. A source
-or sink that cannot be reached at startup is fatal: the log ends with
-`InitFailed: Plugin "…" init() threw an error`, the process exits with
-code 1 and `restart: unless-stopped` starts it again — a restart loop in
-which neither `/healthz` nor the UI answers. `docker compose logs
-framescout` names the plugin; fix its address in `config.yaml` (see
-`docs/troubleshooting.md`).
-
 The daemon should reach `/healthz` within ~10 s:
 
 ```bash
@@ -205,6 +197,22 @@ curl http://localhost:9090/healthz   # → "ok"
 curl http://localhost:9090/readyz    # → "ready"
 curl http://localhost:9090/metrics | head
 ```
+
+`/healthz` answers as soon as the process is up. `/readyz` says `ready`
+once every source and sink has reached its peer. If the hub or the MQTT
+broker is not reachable — wrong address, not started yet — the daemon
+keeps running and retries (after 5 s, then doubling up to every 5 min);
+`/readyz` then answers 503 and names the plugin and the cause:
+
+```
+not ready
+sink "mqtt-ha" not initialised: Plugin "@framescout/sink-mqtt" init() threw an error: getaddrinfo ENOTFOUND homeassistant.local (attempt 4, next retry at 2026-10-03T17:10:59.149Z)
+```
+
+The same is shown on the UI's **Operator** page and logged as
+`plugin init failed; retrying`. Fix the address in `config.yaml` and
+restart, or bring the peer up and wait for the next attempt (see
+`docs/troubleshooting.md`).
 
 The operator UI is at <http://localhost:9090/ui>; the login token is in
 `docker compose exec framescout cat /var/lib/framescout/.ui-token`.

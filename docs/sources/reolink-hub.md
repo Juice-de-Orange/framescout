@@ -43,7 +43,7 @@ sources:
 |----------------------|-------------|-------------|
 | `baseUrl`            | (required)  | `http://host` or `https://host`. Trailing slash trimmed. |
 | `username`           | (required)  | Hub user with at least read+download permissions. |
-| `passwordEnv`        | (required)  | Env var name carrying the password. Read once at `init()`. |
+| `passwordEnv`        | (required)  | Env var name carrying the password. Read once at `init()`. An unset or empty variable stops the daemon at startup; an unreachable hub does not (it is retried). |
 | `channels[]`         | (required)  | One entry per camera you want to ingest. |
 | `channels[].channel` | (required)  | 0-based Hub channel index. |
 | `channels[].deploymentId` | (required) | Matches `deployments[].id`. |

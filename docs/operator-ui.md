@@ -62,7 +62,7 @@ ui rotate-token` CLI is on the v0.3 roadmap.
 | `/ui/config`     | Raw `config.yaml` editor. **Validate** runs `framescoutConfigSchema.parse()` without resolving `!env` references; **Save & Restart** stages a `.pending` file, atomic-renames it onto the live `config.yaml`, and SIGTERM-self so the supervisor picks the daemon back up. |
 | `/ui/individuals`| Register named animals + reference photos for individual recognition. |
 | `/ui/dataset`    | Training-dataset overview: label distribution (species/individual counts) + recent labels. Feeds the offline trainer — see [Custom species classifier](SPECIES-CLASSIFIER.md). |
-| `/ui/operator`   | Daemon version, uptime, config path, dataDir. Manual **Restart daemon** button. |
+| `/ui/operator`   | Daemon version, uptime, config path, dataDir. Manual **Restart daemon** button. Sink cards (queue, breaker, counters, test payload). **Plugins not initialised** lists every source or sink whose peer could not be reached yet, with the cause, the attempt count and the next retry. |
 
 The sidebar also exposes **Log out** (clears the session cookie and
 invalidates it server-side).

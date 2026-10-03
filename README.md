@@ -165,6 +165,18 @@ local ONNX inference in the daemon, Camtrap DP / GBIF export, more sources (ONVI
 Frigate events) — see [docs/ROADMAP.md](docs/ROADMAP.md) and the
 [issues](https://github.com/Juice-de-Orange/framescout/issues).
 
+**What has been verified.** Before the release, the documented setup was run twice from a fresh
+clone, following the README and quickstart literally: image build, quick start, and the full flow
+clip → ffmpeg → detector → observation → sinks, with individual recognition (pinned
+`dinov2-small`), the operator UI and the CLI. Those runs used a *simulated* Reolink hub and a
+*simulated* detector service, and a real MQTT broker (mosquitto). **Not verified in these checks:**
+a real Reolink hub, a real MegaDetector or DeepFaune service, Home Assistant, MQTT with TLS or
+authentication, the webhook and HTTP-multipart sinks, and the `linux/arm64` image. The devices and
+firmware the Reolink source was written against are listed under
+[Tested firmwares](docs/sources/reolink-hub.md#tested-firmwares); they were not re-tested in these
+checks. If you run one of the unverified pieces, a report in the issues — working or not — is
+welcome.
+
 ## Contributing
 
 Contributions are welcome — start with [CONTRIBUTING.md](CONTRIBUTING.md) and the issues labelled

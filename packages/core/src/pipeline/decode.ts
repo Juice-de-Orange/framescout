@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { CaptureEvent, Frame } from '@framescout/plugin-api';
 
+import { redactUrlCredentials } from '../logger.js';
+
 export interface DecodeClipOptions {
   /**
    * Sample rate at which ffmpeg yields frames from the clip. The total
@@ -121,11 +123,14 @@ function runFfmpeg(
       if (code === 0) {
         resolve();
       } else {
+        // ffmpeg echoes its input on stderr; for a Reolink clip that is the
+        // download URL with the session token in it.
+        const detail = redactUrlCredentials(stderr.trim());
         reject(
           new Error(
             `ffmpeg exited with code ${code ?? 'null'}${
               sig ? ` (signal ${sig})` : ''
-            }: ${stderr.trim() || '<no stderr>'}`,
+            }: ${detail || '<no stderr>'}`,
           ),
         );
       }

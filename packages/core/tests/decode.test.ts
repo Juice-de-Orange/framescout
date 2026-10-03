@@ -48,6 +48,26 @@ function captureEvent(path: string): CaptureEvent {
 }
 
 describe.skipIf(!ffmpegAvailable)('decodeClip (ffmpeg integration)', () => {
+  it('does not leak the clip URL token when ffmpeg fails', async () => {
+    // Nothing listens on port 1: ffmpeg fails and echoes the input URL on
+    // stderr. A Reolink download URL carries the session token.
+    const event: CaptureEvent = {
+      ...captureEvent('unused'),
+      clip: {
+        kind: 'url',
+        url: 'http://127.0.0.1:1/cgi-bin/api.cgi?cmd=Download&source=a.mp4&token=SESSIONTOKEN42',
+      },
+    };
+    const err = await decodeClip(event).then(
+      () => undefined,
+      (e: unknown) => e as Error,
+    );
+    expect(err).toBeInstanceOf(Error);
+    expect(err?.message).toContain('ffmpeg exited with code');
+    expect(err?.message).toContain('token=[REDACTED]');
+    expect(err?.message).not.toContain('SESSIONTOKEN42');
+  });
+
   it('extracts roughly framesPerSecond × duration frames', async () => {
     const frames = await decodeClip(captureEvent(clipPath), {
       framesPerSecond: 1,

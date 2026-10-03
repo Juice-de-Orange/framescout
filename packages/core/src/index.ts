@@ -15,6 +15,7 @@ export {
 } from './context.js';
 export {
   createRootLogger,
+  redactUrlCredentials,
   type CreateRootLoggerOptions,
   type LogLevel,
 } from './logger.js';

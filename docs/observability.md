@@ -43,6 +43,13 @@ password, token, apiKey, bearerToken, secret
 *.*.password, *.*.token
 ```
 
+Credentials inside URLs are masked as well, wherever they appear in a
+line (message, `err.message`, `err.stack`, any string field):
+`token=` / `password=` / `secret=` / `apiKey=` style query parameters and
+the password in `scheme://user:password@host`. This is what keeps the
+Reolink session token out of the log when ffmpeg quotes the download URL
+it failed on.
+
 Redacted values render as `"[REDACTED]"`. Plugins should still
 avoid logging sensitive fields — the redaction is a backstop, not a
 guarantee.

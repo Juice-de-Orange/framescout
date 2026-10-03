@@ -258,3 +258,135 @@ describe('runPipeline — crash-budget source recovery', () => {
     );
   });
 });
+
+/**
+ * Finite source that records how far its iterator was driven — the
+ * stand-in for a polling source's watermark, which only advances when
+ * the consumer comes back for the next event.
+ */
+class ListSource implements Source {
+  yielded: string[] = [];
+  completed = false;
+  callCount = 0;
+  constructor(private readonly suffixes: readonly string[]) {}
+  init(): Promise<void> {
+    return Promise.resolve();
+  }
+  start(): Promise<void> {
+    return Promise.resolve();
+  }
+  stop(): Promise<void> {
+    return Promise.resolve();
+  }
+  events(): AsyncIterable<CaptureEvent> {
+    this.callCount += 1;
+    return this.iterate();
+  }
+  private async *iterate(): AsyncGenerator<CaptureEvent, void, void> {
+    for (const suffix of this.suffixes) {
+      this.yielded.push(suffix);
+      yield makeEvent(suffix);
+    }
+    this.completed = true;
+  }
+}
+
+describe('runPipeline — per-event failures', () => {
+  let r: Rig;
+
+  beforeEach(() => {
+    r = newRig();
+  });
+
+  afterEach(() => {
+    r.abortController.abort();
+  });
+
+  function wrap(sink: Sink): BoundedSinkWrapper {
+    return new BoundedSinkWrapper({
+      instanceId: 'mock',
+      sink,
+      policy: 'drop-oldest',
+      metrics: r.metrics,
+      logger: r.logger,
+      abortSignal: r.abortController.signal,
+    });
+  }
+
+  it('skips a clip the decoder rejects and delivers its neighbours', async () => {
+    const source = new ListSource(['good-1', 'bad', 'good-2']);
+    const sink = new RecordingSink();
+
+    await runPipeline({
+      sources: [
+        { instanceId: 'list', source, emitBlankObservations: false, topNFrames: 1 },
+      ],
+      detectors: [{ instanceId: 'noop', detector: new NoopDetector() }],
+      sinks: [wrap(sink)],
+      logger: r.logger,
+      metrics: r.metrics,
+      abortSignal: r.abortController.signal,
+      exitOnIdleSources: true,
+      decode: (event, o) =>
+        event.eventId === 'evt-bad'
+          ? Promise.reject(new Error('ffmpeg exited with code 183'))
+          : decodeStub(event, o),
+      score: scoreStub,
+      crashBudget: { maxFailures: 5, windowMs: 60_000, reinitDelayMs: 1 },
+    });
+
+    expect(sink.delivered.map((p) => p.observation.eventId)).toEqual([
+      'evt-good-1',
+      'evt-good-2',
+    ]);
+    // The iterator was driven past the bad clip to its natural end and
+    // never re-opened: a polling source advances its watermark and does
+    // not see the clip again.
+    expect(source.yielded).toEqual(['good-1', 'bad', 'good-2']);
+    expect(source.completed).toBe(true);
+    expect(source.callCount).toBe(1);
+
+    const metrics = await r.registry.metrics();
+    expect(metrics).toMatch(
+      /framescout_captures_total\{deployment="dep-1",camera="cam-1",outcome="decode_failed"\} 1/,
+    );
+    expect(metrics).toMatch(
+      /framescout_captures_total\{deployment="dep-1",camera="cam-1",outcome="emitted"\} 2/,
+    );
+    // A bad clip is not a source crash.
+    expect(metrics).not.toMatch(/framescout_plugin_crashes_total\{plugin="list"/);
+  });
+
+  it('skips an event whose score stage throws', async () => {
+    const source = new ListSource(['good-1', 'bad', 'good-2']);
+    const sink = new RecordingSink();
+    let calls = 0;
+
+    await runPipeline({
+      sources: [
+        { instanceId: 'list', source, emitBlankObservations: false, topNFrames: 1 },
+      ],
+      detectors: [{ instanceId: 'noop', detector: new NoopDetector() }],
+      sinks: [wrap(sink)],
+      logger: r.logger,
+      metrics: r.metrics,
+      abortSignal: r.abortController.signal,
+      exitOnIdleSources: true,
+      decode: decodeStub,
+      score: (frames, o) => {
+        calls += 1;
+        return calls === 2
+          ? Promise.reject(new Error('corrupt JPEG'))
+          : scoreStub(frames, o);
+      },
+      crashBudget: { maxFailures: 5, windowMs: 60_000, reinitDelayMs: 1 },
+    });
+
+    expect(sink.delivered).toHaveLength(2);
+    expect(source.completed).toBe(true);
+    const metrics = await r.registry.metrics();
+    expect(metrics).toMatch(
+      /framescout_captures_total\{deployment="dep-1",camera="cam-1",outcome="failed"\} 1/,
+    );
+  });
+});

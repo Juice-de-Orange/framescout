@@ -346,7 +346,8 @@ button:disabled {
   font-size: 13px;
 }
 
-.sink-card.sink-open { border-color: var(--danger); }
+.sink-card.sink-open,
+.sink-card.sink-not-initialised { border-color: var(--danger); }
 .sink-card.sink-half-open { border-color: var(--accent); }
 
 .sink-card header {
@@ -365,7 +366,8 @@ button:disabled {
   border-radius: 2px;
 }
 
-.sink-card.sink-open .badge { color: var(--danger); }
+.sink-card.sink-open .badge,
+.sink-card.sink-not-initialised .badge { color: var(--danger); }
 .sink-card.sink-half-open .badge { color: var(--accent); }
 
 .sink-card dl {
@@ -377,6 +379,16 @@ button:disabled {
 
 .sink-card dt { color: var(--muted); }
 .sink-card dd { margin: 0; font-family: ui-monospace, monospace; }
+
+.init-pending {
+  border: 1px solid var(--danger);
+  border-radius: 4px;
+  padding: 0 12px;
+  margin-top: 16px;
+}
+
+.init-pending ul { padding-left: 18px; }
+.init-pending li { margin-bottom: 8px; }
 
 /* ── v0.2.x: individuals ─────────────────────────────────────────── */
 

@@ -94,14 +94,14 @@ detections from upstream detectors — same recovery path as `outcome="error"`.
 |-----------------------------------|---------|-------------------------|-------------|
 | `framescout_sink_deliveries_total`| counter | `sink`, `outcome`       | `outcome` ∈ `success \| error`. |
 | `framescout_sink_queue_depth`     | gauge   | `sink`                  | In-flight queue depth on `BoundedSinkWrapper`. |
-| `framescout_sink_dropped_total`   | counter | `sink`, `reason`        | `reason` ∈ `queue_full \| circuit_open`. |
+| `framescout_sink_dropped_total`   | counter | `sink`, `reason`        | `reason` ∈ `queue_full \| circuit_open \| not_initialised` (the last: still queued at shutdown for a sink whose `init()` never succeeded). |
 
 ### Plugin lifecycle
 
 | Metric                              | Type    | Labels                              | Description |
 |-------------------------------------|---------|-------------------------------------|-------------|
 | `framescout_plugin_crashes_total`   | counter | `plugin`, `kind`                    | Iterator throws charged against the crash budget. `kind` ∈ `source` (only sources are budgeted in v0.1.1). |
-| `framescout_plugin_disabled`        | gauge   | `plugin`, `kind`, `reason`          | `1` when the host has disabled a plugin (e.g., `reason="crash-budget-exhausted"`), else `0`. The daemon initialises this gauge to `0` for every wired plugin so the series appears in Prometheus from t=0. |
+| `framescout_plugin_disabled`        | gauge   | `plugin`, `kind`, `reason`          | `1` when the host has disabled a plugin (`reason="crash-budget-exhausted"`) or while a source's or sink's `init()` is failing and being retried (`reason="init-failed"`), else `0`. The daemon initialises this gauge to `0` for every wired plugin so the series appears in Prometheus from t=0. |
 
 Alerting recipe: page on
 `framescout_plugin_disabled > 0` for more than 5 minutes. The
@@ -122,7 +122,7 @@ label keys consistent per metric.
 | Endpoint    | Behaviour                                                              |
 |-------------|------------------------------------------------------------------------|
 | `/healthz`  | Always 200 once the process is up. Container liveness probe target.    |
-| `/readyz`   | 200 once every plugin's `init()` has resolved (v0.1.0 lifts to ready post-init); 503 otherwise. |
+| `/readyz`   | 200 once every plugin's `init()` has resolved; 503 otherwise. A source or sink whose `init()` fails does not stop the daemon — it is retried with backoff (5 s doubling to 5 min) and the 503 body lists it: `not ready`, then one line per plugin with the cause, the attempt count and the next retry time. |
 | `/metrics`  | Always 200 with Prometheus text body.                                  |
 
 `framescout.metricsPort: 0` disables all three. Setting `0` means the

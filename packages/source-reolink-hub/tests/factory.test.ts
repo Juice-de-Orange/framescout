@@ -56,3 +56,37 @@ describe('@framescout/source-reolink-hub factory', () => {
     expect(r.success).toBe(false);
   });
 });
+
+describe('@framescout/source-reolink-hub factory.create', () => {
+  const config = factory.configSchema.parse({
+    baseUrl: 'http://hub.local',
+    username: 'admin',
+    passwordEnv: 'REOLINK_TEST_PASSWORD_UNSET',
+    channels: [{ channel: 0, deploymentId: 'garden', cameraId: 'front' }],
+  });
+  const ctx = {
+    instanceId: 'reolink-1',
+    logger: undefined as never,
+    dataDir: '/nonexistent',
+    abortSignal: new AbortController().signal,
+    metric: (): void => undefined,
+  };
+
+  // An empty password variable is a configuration error. It must surface
+  // in create() — the host retries a failing init(), but not this.
+  it('rejects an empty passwordEnv variable before init()', () => {
+    delete process.env['REOLINK_TEST_PASSWORD_UNSET'];
+    expect(() => factory.create(config, ctx)).toThrow(
+      'reolink-hub: passwordEnv "REOLINK_TEST_PASSWORD_UNSET" is empty',
+    );
+  });
+
+  it('creates the source when the variable is set', () => {
+    process.env['REOLINK_TEST_PASSWORD_UNSET'] = 'x';
+    try {
+      expect(() => factory.create(config, ctx)).not.toThrow();
+    } finally {
+      delete process.env['REOLINK_TEST_PASSWORD_UNSET'];
+    }
+  });
+});

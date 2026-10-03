@@ -148,6 +148,7 @@ export function registerApiRoutes(router: Router, deps: ApiRoutesDeps): void {
         sources: [],
         detectors: [],
         sinks: [],
+        initPending: [],
       };
       writeJson(res, 200, snap);
     }),
@@ -166,7 +167,7 @@ export function registerApiRoutes(router: Router, deps: ApiRoutesDeps): void {
         stream.addCloseHandler(off);
       } else {
         stream.send(
-          { sources: [], detectors: [], sinks: [] },
+          { sources: [], detectors: [], sinks: [], initPending: [] },
           { event: 'state' },
         );
       }

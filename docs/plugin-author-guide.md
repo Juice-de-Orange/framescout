@@ -134,6 +134,10 @@ export class DiscordSink implements Sink {
     private readonly ctx: PluginContext,
   ) {}
 
+  // A rejecting init() of a source or sink is not fatal: the daemon
+  // calls it again with backoff until it resolves, so it must be safe
+  // to call again. Throw from the factory's create() instead for a
+  // configuration problem that retrying cannot fix.
   async init(): Promise<void> {
     this.ctx.logger.info('discord sink initialised');
   }

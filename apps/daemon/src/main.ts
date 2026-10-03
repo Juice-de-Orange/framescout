@@ -14,6 +14,7 @@ import {
   LogRing,
   ManualReadyState,
   ObservationRing,
+  PluginInitTracker,
   PluginRegistry,
   StateProvider,
   decodeStub,
@@ -29,6 +30,7 @@ import {
   type EmbedFn,
   type HttpServerHandle,
   type IndividualsService,
+  type ReadyState,
 } from '@framescout/core';
 import { fileURLToPath } from 'node:url';
 
@@ -72,13 +74,21 @@ async function main(): Promise<void> {
 
   const metricsRegistry = createMetricsRegistry();
   const readyState = new ManualReadyState();
+  // Sources and sinks whose init() failed are retried in the background
+  // (wirePlugins); until the last one is up, /readyz answers 503 and
+  // names them. /healthz is unaffected — the process is alive.
+  const pluginInit = new PluginInitTracker();
+  const readiness: ReadyState = {
+    isReady: () => readyState.isReady() && pluginInit.allReady(),
+    notReadyReasons: () => pluginInit.reasons(),
+  };
   const shutdownController = new AbortController();
   const observationRing = new ObservationRing(256);
   const pluginRegistry = new PluginRegistry();
   // Empty initially — populated with `wired.sinks` after wirePlugins
   // returns. The HTTP server boots first (so /healthz answers quickly)
   // and holds a stable reference into this instance via ApiRoutesDeps.
-  const stateProvider = new StateProvider({ sinks: [] });
+  const stateProvider = new StateProvider({ sinks: [], pluginInit });
   // Same lifecycle: route handlers capture this Map by reference;
   // entries land after wirePlugins. Used by `POST /api/sinks/:id/test`.
   const rawSinksById = new Map<string, import('@framescout/plugin-api').Sink>();
@@ -201,7 +211,7 @@ async function main(): Promise<void> {
       port,
       host: config.framescout.ui.bind,
       registry: metricsRegistry.registry,
-      readyState,
+      readyState: readiness,
       logger,
       routes: (router) => {
         if (!config.framescout.ui.enabled) return;
@@ -271,9 +281,10 @@ async function main(): Promise<void> {
     });
   }
 
-  // Wire plugins (sources → detectors → sinks). Fail-fast on any
-  // plugin init failure; the shutdown branch below releases what
-  // was already started.
+  // Wire plugins (sources → detectors → sinks). Configuration errors
+  // and detector init failures are fatal. A source or sink whose init()
+  // could not reach its peer is not: it is wired anyway and retried in
+  // the background (see wirePlugins), so the UI stays up to fix it.
   let wired: Awaited<ReturnType<typeof wirePlugins>> | undefined;
   try {
     wired = await wirePlugins(config, {
@@ -283,9 +294,12 @@ async function main(): Promise<void> {
       runtimeDataDir: config.framescout.dataDir,
       abortSignal: shutdownController.signal,
       registry: pluginRegistry,
+      pluginInit,
     });
   } catch (err) {
     logger.fatal({ err }, 'plugin wiring failed; shutting down');
+    // Stops the init retries of plugins that were wired before the failure.
+    shutdownController.abort();
     await server?.close();
     throw err;
   }
@@ -327,6 +341,7 @@ async function main(): Promise<void> {
       port: server ? server.address.port : null,
       dataDir: config.framescout.dataDir,
       uiEnabled: config.framescout.ui.enabled,
+      initPending: pluginInit.pending().map((p) => p.instanceId),
     },
     'framescout daemon started',
   );

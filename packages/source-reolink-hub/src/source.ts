@@ -51,17 +51,26 @@ export class ReolinkSource implements Source {
     private readonly config: ReolinkHubConfig,
     private readonly ctx: PluginContext,
   ) {
+    // A missing password is a configuration error, not an unreachable
+    // hub: reject it here, in the factory's create(), where the host
+    // treats a failure as fatal. A failing init() is retried instead.
+    this.readPassword();
     this.state = new SourceState(ctx.dataDir);
     this.log = ctx.logger;
   }
 
-  async init(): Promise<void> {
+  private readPassword(): string {
     const password = process.env[this.config.passwordEnv];
     if (!password) {
       throw new Error(
         `reolink-hub: passwordEnv "${this.config.passwordEnv}" is empty`,
       );
     }
+    return password;
+  }
+
+  async init(): Promise<void> {
+    const password = this.readPassword();
     this.client = new ReolinkClient({
       baseUrl: this.config.baseUrl,
       username: this.config.username,

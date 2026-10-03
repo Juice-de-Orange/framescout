@@ -75,6 +75,30 @@ export function OperatorRoute(): preact.JSX.Element {
         {status !== undefined && <span class="status">{status}</span>}
       </div>
 
+      {state && state.initPending.length > 0 && (
+        <div class="init-pending" data-testid="init-pending">
+          <h3>Plugins not initialised</h3>
+          <p class="muted">
+            These plugins could not reach their peer. The daemon keeps retrying; a source emits
+            nothing and a sink queues its observations until it is up.
+          </p>
+          <ul>
+            {state.initPending.map((p) => (
+              <li key={p.instanceId} data-instance-id={p.instanceId}>
+                <strong>
+                  {p.kind} {p.instanceId}
+                </strong>{' '}
+                <span class="error">{p.error}</span>
+                <div class="muted">
+                  attempt {p.attempts}, failing since {new Date(p.failingSince).toLocaleTimeString()},
+                  next retry at {new Date(p.nextRetryAt).toLocaleTimeString()}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <h3>Sinks</h3>
       {state && state.sinks.length > 0 ? (
         <div class="sink-grid">

@@ -45,7 +45,7 @@ export interface LoadedPlugin<T extends PluginLifecycle = PluginLifecycle> {
   readonly configSchema: ZodType<unknown>;
 }
 
-const DEFAULT_INIT_TIMEOUT_MS = 30_000;
+export const DEFAULT_INIT_TIMEOUT_MS = 30_000;
 const VALID_KINDS = new Set(['source', 'detector', 'sink']);
 
 /**
@@ -66,6 +66,21 @@ const VALID_KINDS = new Set(['source', 'detector', 'sink']);
  */
 export async function loadPlugin<T extends PluginLifecycle = PluginLifecycle>(
   opts: LoadPluginOptions,
+): Promise<LoadedPlugin<T>> {
+  const prepared = await preparePlugin<T>(opts);
+  await initPlugin(prepared.instance, opts.package, opts.initTimeoutMs);
+  return prepared;
+}
+
+/**
+ * Steps 1–7 of {@link loadPlugin}: everything up to and including
+ * `factory.create()`, without `init()`. Whatever fails here is a
+ * configuration or packaging error (unknown package, incompatible
+ * manifest, invalid `config:` block, a factory that refuses its
+ * config) — retrying cannot fix it, so callers treat it as fatal.
+ */
+export async function preparePlugin<T extends PluginLifecycle = PluginLifecycle>(
+  opts: Omit<LoadPluginOptions, 'initTimeoutMs'>,
 ): Promise<LoadedPlugin<T>> {
   const pkg = opts.package;
   const { dir, mainPath } = await resolvePackage(pkg);
@@ -103,20 +118,34 @@ export async function loadPlugin<T extends PluginLifecycle = PluginLifecycle>(
   }
 
   const instance = factory.create(cfg, opts.ctx);
-  const timeoutMs = opts.initTimeoutMs ?? DEFAULT_INIT_TIMEOUT_MS;
-
-  try {
-    await withTimeout(instance.init(), timeoutMs, () => new InitTimeout(pkg, timeoutMs));
-  } catch (err) {
-    if (err instanceof InitTimeout) throw err;
-    throw new InitFailed(pkg, err);
-  }
 
   return {
     instance,
     manifest,
     configSchema: factory.configSchema as ZodType<unknown>,
   };
+}
+
+/**
+ * Step 8 of {@link loadPlugin}: `instance.init()` under a timeout.
+ * Rejects with {@link InitTimeout} or {@link InitFailed} (the plugin's
+ * own error is the `cause`).
+ */
+export async function initPlugin(
+  instance: PluginLifecycle,
+  packageName: string,
+  initTimeoutMs: number = DEFAULT_INIT_TIMEOUT_MS,
+): Promise<void> {
+  try {
+    await withTimeout(
+      instance.init(),
+      initTimeoutMs,
+      () => new InitTimeout(packageName, initTimeoutMs),
+    );
+  } catch (err) {
+    if (err instanceof InitTimeout) throw err;
+    throw new InitFailed(packageName, err);
+  }
 }
 
 interface ParsedPackageJson {

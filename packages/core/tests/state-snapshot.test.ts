@@ -4,6 +4,8 @@ import type { Logger, Sink } from '@framescout/plugin-api';
 import { BoundedSinkWrapper } from '../src/sink/bounded-sink.js';
 import { createMetricsRegistry } from '../src/metrics.js';
 import { StateProvider } from '../src/state-snapshot.js';
+import { InitFailed } from '../src/errors.js';
+import { PluginInitTracker } from '../src/plugin-init.js';
 
 function silentLogger(): Logger {
   const noop = (() => undefined) as unknown as Logger['info'];
@@ -136,5 +138,31 @@ describe('StateProvider', () => {
     sp.subscribe(() => undefined);
     sp.close();
     expect(sp.subscriberCount()).toBe(0);
+  });
+
+  it('snapshot lists plugins waiting for init and broadcasts when that changes', () => {
+    const pluginInit = new PluginInitTracker(() => Date.parse('2026-10-03T10:00:00Z'));
+    const sp = new StateProvider({ sinks: [], pluginInit });
+    expect(sp.snapshot().initPending).toEqual([]);
+
+    const seen: number[] = [];
+    sp.subscribe((snap) => seen.push(snap.initPending.length));
+    pluginInit.recordFailure(
+      { instanceId: 'reolink-1', kind: 'source', packageName: '@framescout/source-reolink-hub' },
+      {
+        attempt: 1,
+        error: new InitFailed('@framescout/source-reolink-hub', new Error('fetch failed')),
+        retryInMs: 5_000,
+      },
+    );
+    expect(sp.snapshot().initPending).toMatchObject([
+      { instanceId: 'reolink-1', kind: 'source', attempts: 1 },
+    ]);
+    pluginInit.recordReady('reolink-1');
+    expect(seen).toEqual([1, 0]);
+  });
+
+  it('snapshot has an empty initPending without a tracker', () => {
+    expect(new StateProvider({ sinks: [] }).snapshot().initPending).toEqual([]);
   });
 });

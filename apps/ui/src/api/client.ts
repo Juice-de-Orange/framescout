@@ -103,6 +103,8 @@ export interface SinkInfo {
   readonly queueDepth: number;
   readonly queueSize: number;
   readonly breakerState: 'closed' | 'open' | 'half-open';
+  /** `false` while the sink's `init()` is still being retried. */
+  readonly initialised: boolean;
   readonly droppedTotal: number;
   readonly deliveredTotal: number;
   readonly errorsTotal: number;
@@ -112,6 +114,18 @@ export interface StateSnapshot {
   readonly sources: ReadonlyArray<{ instanceId: string; disabled: boolean }>;
   readonly detectors: ReadonlyArray<{ instanceId: string }>;
   readonly sinks: readonly SinkInfo[];
+  /** Sources and sinks whose `init()` has not succeeded yet. */
+  readonly initPending: readonly PluginInitStatus[];
+}
+
+export interface PluginInitStatus {
+  readonly instanceId: string;
+  readonly kind: 'source' | 'detector' | 'sink';
+  readonly packageName: string;
+  readonly attempts: number;
+  readonly error: string;
+  readonly failingSince: string;
+  readonly nextRetryAt: string;
 }
 
 export async function getState(): Promise<StateSnapshot> {

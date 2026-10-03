@@ -262,3 +262,118 @@ describe('BoundedSinkWrapper — close()', () => {
     expect(sink.delivered).toHaveLength(5);
   });
 });
+
+describe('BoundedSinkWrapper — sink not initialised yet', () => {
+  let r: TestRig;
+
+  beforeEach(() => {
+    r = rig();
+  });
+
+  const numbered = (n: number): SinkPayload => ({
+    ...SAMPLE_PAYLOAD,
+    observation: { ...SAMPLE_PAYLOAD.observation, observationId: `obs-${n}` },
+  });
+  const ids = (payloads: readonly SinkPayload[]): string[] =>
+    payloads.map((p) => p.observation.observationId);
+
+  async function dropped(reason: string): Promise<number> {
+    const metric = await r.registry.getSingleMetric('framescout_sink_dropped_total')!.get();
+    return (
+      metric.values.find((v) => v.labels['sink'] === 's' && v.labels['reason'] === reason)
+        ?.value ?? 0
+    );
+  }
+
+  it('never calls deliver() before markInitialised(), then delivers what was queued', async () => {
+    const sink = new RecordingSink();
+    const w = new BoundedSinkWrapper({
+      instanceId: 's',
+      sink,
+      queueSize: 4,
+      policy: 'drop-oldest',
+      metrics: r.metrics,
+      logger: r.logger,
+      abortSignal: r.abortController.signal,
+      initialised: false,
+    });
+    await w.enqueue(numbered(1));
+    await w.enqueue(numbered(2));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(sink.delivered).toEqual([]);
+    expect(w.info()).toMatchObject({ initialised: false, queueDepth: 2, errorsTotal: 0 });
+
+    w.markInitialised();
+    await w.close();
+    expect(ids(sink.delivered)).toEqual(['obs-1', 'obs-2']);
+    expect(w.info()).toMatchObject({ initialised: true, deliveredTotal: 2, droppedTotal: 0 });
+  });
+
+  it('drop-oldest keeps the newest queueSize payloads and counts every drop', async () => {
+    const sink = new RecordingSink();
+    const w = new BoundedSinkWrapper({
+      instanceId: 's',
+      sink,
+      queueSize: 2,
+      policy: 'drop-oldest',
+      metrics: r.metrics,
+      logger: r.logger,
+      abortSignal: r.abortController.signal,
+      initialised: false,
+    });
+    for (let i = 1; i <= 5; i += 1) await w.enqueue(numbered(i));
+    expect(w.info()).toMatchObject({ queueDepth: 2, droppedTotal: 3 });
+    expect(await dropped('queue_full')).toBe(3);
+
+    w.markInitialised();
+    await w.close();
+    expect(ids(sink.delivered)).toEqual(['obs-4', 'obs-5']);
+  });
+
+  it('block makes the producer wait until the sink is initialised', async () => {
+    const sink = new RecordingSink();
+    const w = new BoundedSinkWrapper({
+      instanceId: 's',
+      sink,
+      queueSize: 1,
+      policy: 'block',
+      metrics: r.metrics,
+      logger: r.logger,
+      abortSignal: r.abortController.signal,
+      initialised: false,
+    });
+    await w.enqueue(numbered(1));
+    let secondAccepted = false;
+    const second = w.enqueue(numbered(2)).then(() => {
+      secondAccepted = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(secondAccepted).toBe(false);
+
+    w.markInitialised();
+    await second;
+    await w.close();
+    expect(ids(sink.delivered)).toEqual(['obs-1', 'obs-2']);
+    expect(w.info().droppedTotal).toBe(0);
+  });
+
+  it('close() before the sink ever initialised drops the queue and counts it', async () => {
+    const sink = new RecordingSink();
+    const w = new BoundedSinkWrapper({
+      instanceId: 's',
+      sink,
+      queueSize: 4,
+      policy: 'drop-oldest',
+      metrics: r.metrics,
+      logger: r.logger,
+      abortSignal: r.abortController.signal,
+      initialised: false,
+    });
+    await w.enqueue(numbered(1));
+    await w.enqueue(numbered(2));
+    await w.close();
+    expect(sink.delivered).toEqual([]);
+    expect(w.info()).toMatchObject({ queueDepth: 0, droppedTotal: 2 });
+    expect(await dropped('not_initialised')).toBe(2);
+  });
+});

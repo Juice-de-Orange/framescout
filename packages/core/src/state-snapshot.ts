@@ -1,3 +1,4 @@
+import type { PluginInitStatus, PluginInitTracker } from './plugin-init.js';
 import type { BoundedSinkWrapper, SinkInfo } from './sink/bounded-sink.js';
 
 export interface SourceState {
@@ -13,6 +14,8 @@ export interface StateSnapshot {
   readonly sources: readonly SourceState[];
   readonly detectors: readonly DetectorState[];
   readonly sinks: readonly SinkInfo[];
+  /** Sources and sinks whose `init()` has not succeeded yet (being retried). */
+  readonly initPending: readonly PluginInitStatus[];
 }
 
 export type StateSubscriber = (snapshot: StateSnapshot) => void;
@@ -23,6 +26,8 @@ export interface StateProviderOptions {
   readonly sourceIds?: readonly string[];
   /** Detector IDs the operator has wired. Reserved for v0.3. */
   readonly detectorIds?: readonly string[];
+  /** When set, plugins still waiting for a successful `init()` are part of the snapshot. */
+  readonly pluginInit?: PluginInitTracker;
 }
 
 /**
@@ -38,11 +43,15 @@ export class StateProvider {
   private detectorIds: readonly string[];
   private readonly subscribers = new Set<StateSubscriber>();
   private unsubscribeHandles: Array<() => void> = [];
+  private readonly pluginInit: PluginInitTracker | undefined;
+  private readonly unsubscribePluginInit: (() => void) | undefined;
 
   constructor(opts: StateProviderOptions) {
     this.sinks = opts.sinks;
     this.sourceIds = opts.sourceIds ?? [];
     this.detectorIds = opts.detectorIds ?? [];
+    this.pluginInit = opts.pluginInit;
+    this.unsubscribePluginInit = this.pluginInit?.onChange(() => this.broadcast());
     this.attachSinkListeners();
   }
 
@@ -79,6 +88,7 @@ export class StateProvider {
       sources: this.sourceIds.map((id) => ({ instanceId: id, disabled: false })),
       detectors: this.detectorIds.map((id) => ({ instanceId: id })),
       sinks: this.sinks.map((s) => s.info()),
+      initPending: this.pluginInit?.pending() ?? [],
     };
   }
 
@@ -98,6 +108,7 @@ export class StateProvider {
   close(): void {
     for (const off of this.unsubscribeHandles) off();
     this.unsubscribeHandles.length = 0;
+    this.unsubscribePluginInit?.();
     this.subscribers.clear();
   }
 

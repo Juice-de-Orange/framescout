@@ -1,13 +1,15 @@
 {
   "name": "@framescout/daemon",
-  "version": "0.0.0",
+  "version": "0.2.0",
   "description": "Framescout container entrypoint. Wires @framescout/core to config.yaml and runs the pipeline.",
   "license": "Apache-2.0",
   "author": "Max Oberrauch",
   "private": true,
   "type": "module",
   "main": "./dist/main.js",
-  "engines": { "node": ">=22.12.0" },
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "build": "tsc -b",
     "lint": "eslint src",

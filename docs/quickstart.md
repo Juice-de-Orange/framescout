@@ -52,10 +52,15 @@ cosign-signed; for production you can pin the digest reported by
 The fastest path is the bundled interactive scaffold:
 
 ```bash
-docker run --rm -it -v "$PWD:/work" -w /work \
+docker run --rm -it --user "$(id -u):$(id -g)" -v "$PWD:/work" -w /work \
   ghcr.io/juice-de-orange/framescout:v0.2.0 \
   framescout init
 ```
+
+`--user` makes the container write as you: the image's own user (uid
+1001) has no write access to your directory, and without the flag the
+command ends with `EACCES: permission denied, open
+'/work/config.yaml.tmp'` after the last question.
 
 It asks for the camera identity, Reolink hub address + credentials,
 which detectors and sinks you want, and writes a `config.yaml` (plus

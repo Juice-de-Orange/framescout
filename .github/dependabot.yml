@@ -12,6 +12,16 @@ updates:
       minor-and-patch:
         update-types: [minor, patch]
 
+  # studio's browser UI has its own npm lockfile outside the pnpm workspace.
+  - package-ecosystem: npm
+    directory: /studio/web-src
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+
   - package-ecosystem: pip
     directories: [/training, /services/inference-server, /studio]
     schedule:

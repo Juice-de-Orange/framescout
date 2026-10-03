@@ -31,7 +31,11 @@ def make_tiny_onnx(path: Path, *, num_classes: int = 3, dim: int = 4, seed: int 
     out_e = helper.make_tensor_value_info("embedding", TensorProto.FLOAT, [1, dim])
     out_l = helper.make_tensor_value_info("logits", TensorProto.FLOAT, [1, num_classes])
     graph = helper.make_graph([embedding, logits], "tiny", [inp], [out_e, out_l])
-    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    # IR 10 = the newest version the pinned onnxruntime (1.20.x) loads; `onnx` itself would
+    # default to its own latest IR. Raise this together with onnxruntime.
+    model = helper.make_model(
+        graph, opset_imports=[helper.make_opsetid("", 17)], ir_version=10
+    )
     onnx.save(model, str(path))
 
 

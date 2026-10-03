@@ -52,6 +52,7 @@ const DAEMON_VERSION = '0.2.0';
  * `requestRestart`, observed by `main()` after graceful drain.
  */
 const EXIT_CODE_RESTART_REQUESTED = 42;
+const EXIT_CODE_PIPELINE_CRASHED = 1;
 let restartRequested = false;
 
 async function main(): Promise<void> {
@@ -342,6 +343,7 @@ async function main(): Promise<void> {
     logger.warn('FRAMESCOUT_DECODE_STUB=1 — using in-memory decode/score stubs');
   }
 
+  let pipelineCrashed = false;
   try {
     await runPipeline({
       sources: wired.sources,
@@ -359,6 +361,7 @@ async function main(): Promise<void> {
     });
   } catch (err) {
     logger.error({ err }, 'pipeline crashed');
+    pipelineCrashed = true;
   }
 
   await stopAllPlugins(wired, logger);
@@ -369,6 +372,12 @@ async function main(): Promise<void> {
     // production health-supervisor) can tell "restart please" apart
     // from "shut down".
     process.exitCode = EXIT_CODE_RESTART_REQUESTED;
+  }
+  if (pipelineCrashed) {
+    // A crash is a failure, whatever else was requested: exit non-zero so
+    // `restart: on-failure`, systemd and CI see it. Plugins and the HTTP
+    // server were still shut down in order above.
+    process.exitCode = EXIT_CODE_PIPELINE_CRASHED;
   }
 }
 

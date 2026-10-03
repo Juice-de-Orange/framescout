@@ -156,6 +156,26 @@ describe('registerApiRoutes — observations', () => {
     expect(body.items.map((i) => i.observation.observationId)).toEqual(['a', 'b']);
   });
 
+  it('GET /api/observations leaves the JPEG bytes to the thumb route', async () => {
+    // A realistic bestFrame is a few hundred kB; serialised as a JSON
+    // object (one key per byte) it was ~10× that per observation.
+    rig.observations.push(obs('a'), { jpeg: new Uint8Array(200_000).fill(0xff) });
+    rig.observations.push(obs('b'), {
+      jpeg: new Uint8Array(200_000).fill(0xff),
+      individualName: 'tulli',
+    });
+    const res = await fetch(`${rig.base}/api/observations?limit=10`, {
+      headers: { cookie: rig.cookie },
+    });
+    const text = await res.text();
+    const body = JSON.parse(text) as { items: Record<string, unknown>[] };
+    expect(res.status).toBe(200);
+    expect(body.items).toHaveLength(2);
+    for (const item of body.items) expect(item).not.toHaveProperty('jpeg');
+    expect(body.items[1]).toMatchObject({ individualName: 'tulli' });
+    expect(text.length).toBeLessThan(4_096);
+  });
+
   it('rejects requests without a session cookie', async () => {
     const res = await fetch(`${rig.base}/api/observations`);
     expect(res.status).toBe(401);

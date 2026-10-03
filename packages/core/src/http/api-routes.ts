@@ -180,7 +180,12 @@ export function registerApiRoutes(router: Router, deps: ApiRoutesDeps): void {
       const url = new URL(req.url ?? '/', 'http://x');
       const limitRaw = url.searchParams.get('limit');
       const limit = limitRaw ? Number.parseInt(limitRaw, 10) : 64;
-      const items = deps.observations.list(Number.isFinite(limit) ? limit : 64);
+      // Same as the SSE route below: the JPEG bytes are served by
+      // /api/observations/:id/thumb. Serialised here, a Uint8Array
+      // becomes a `{"0":255,"1":216,…}` object — megabytes per frame.
+      const items = deps.observations
+        .list(Number.isFinite(limit) ? limit : 64)
+        .map(({ jpeg: _jpeg, ...rest }) => rest);
       writeJson(res, 200, { items });
     }),
   );

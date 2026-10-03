@@ -46,7 +46,7 @@
   },
   "devDependencies": {
     "@framescout/plugin-api": "workspace:^",
-    "aedes": "^0.51.3"
+    "aedes": "^1.2.0"
   },
   "publishConfig": {
     "access": "public",

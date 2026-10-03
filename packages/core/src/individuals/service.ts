@@ -97,6 +97,15 @@ export class IndividualExistsError extends Error {
   }
 }
 
+export class InvalidIndividualNameError extends Error {
+  constructor(name: string) {
+    super(
+      `invalid individual name "${name}": must match ${NAME_RX.source} (lowercase, kebab-case)`,
+    );
+    this.name = 'InvalidIndividualNameError';
+  }
+}
+
 export class NoPhotosError extends Error {
   constructor(name: string) {
     super(`individual "${name}" has no photos — add some before recomputing`);
@@ -348,13 +357,17 @@ export function createIndividualsService(
 
 const NAME_RX = /^[a-z][a-z0-9-]{0,62}$/;
 
-function validateName(name: string): void {
-  if (!NAME_RX.test(name)) {
-    throw new Error(
-      `invalid individual name "${name}": must match ${NAME_RX.source} (lowercase, kebab-case)`,
-    );
-  }
+/**
+ * The one rule for individual names. The name becomes a directory under
+ * `<referenceDir>/`, so everything that takes a name from outside — the
+ * HTTP API and the CLI alike — must run it through this before touching
+ * the filesystem. Throws {@link InvalidIndividualNameError}.
+ */
+export function validateIndividualName(name: string): void {
+  if (!NAME_RX.test(name)) throw new InvalidIndividualNameError(name);
 }
+
+const validateName = validateIndividualName;
 
 function validateFilename(file: string): void {
   // Defence-in-depth — refuse anything that looks like a path traversal.

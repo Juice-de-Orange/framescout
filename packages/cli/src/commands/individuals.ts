@@ -1,7 +1,7 @@
 import { copyFile, mkdir, readdir, readFile, rm, stat } from 'node:fs/promises';
 import { extname, basename, resolve } from 'node:path';
 
-import { loadConfig } from '@framescout/core';
+import { loadConfig, validateIndividualName } from '@framescout/core';
 import type {
   BackboneConfig,
   IndividualManifest,
@@ -32,13 +32,32 @@ export interface IndividualsAddOptions {
   photos: string[];
   config: string;
   threshold?: number;
+  /** Replace an individual of the same name (photos, centroid, manifest). */
+  replace?: boolean;
   json?: boolean;
+}
+
+/**
+ * Names become directories under the reference dir. The CLI writes and
+ * deletes there directly, so it applies the same rule as the API
+ * (`validateIndividualName` in core) — `../evil` must never get as far
+ * as a path join.
+ */
+function checkName(command: string, name: string, io: CliIO): boolean {
+  try {
+    validateIndividualName(name);
+    return true;
+  } catch (err) {
+    io.err(`individuals ${command}: ${err instanceof Error ? err.message : String(err)}\n`);
+    return false;
+  }
 }
 
 export async function cmdIndividualsAdd(
   opts: IndividualsAddOptions,
   io: CliIO,
 ): Promise<number> {
+  if (!checkName('add', opts.name, io)) return ExitCode.Misuse;
   if (opts.photos.length === 0) {
     io.err('individuals add: --photos is required (at least one JPEG)\n');
     return ExitCode.Misuse;
@@ -57,6 +76,21 @@ export async function cmdIndividualsAdd(
       io.err(`individuals add: ${p} is not a readable file\n`);
       return ExitCode.Misuse;
     }
+  }
+
+  // An existing individual is never overwritten by accident. `add` used
+  // to write the new photos next to the old ones and point the manifest
+  // at the new set only — the old files stayed behind as orphans, and the
+  // next `recompute` (which reads the directory) folded them back in.
+  const individualDir = resolve(referenceDir, opts.name);
+  const existing = await stat(individualDir).catch(() => undefined);
+  if (existing !== undefined && opts.replace !== true) {
+    io.err(
+      `individuals add: "${opts.name}" already exists (${individualDir}).\n` +
+        `  Pass --replace to replace its photos and centroid, or remove it first ` +
+        `with \`framescout individuals remove ${opts.name}\`.\n`,
+    );
+    return ExitCode.Misuse;
   }
 
   const { embedFromJpeg, meanEmbeddings, writeCentroid } = await loadEmbed();
@@ -83,7 +117,12 @@ export async function cmdIndividualsAdd(
 
     // Write photos into <referenceDir>/<name>/photos/, build manifest,
     // compute centroid, atomically commit.
-    const photosDir = resolve(referenceDir, opts.name, 'photos');
+    // --replace: every new photo embedded fine, so the old individual can
+    // go now — as a whole, leaving no orphan files.
+    if (existing !== undefined) {
+      await rm(individualDir, { recursive: true, force: true });
+    }
+    const photosDir = resolve(individualDir, 'photos');
     await mkdir(photosDir, { recursive: true });
     const storedNames: string[] = [];
     for (let i = 0; i < opts.photos.length; i += 1) {
@@ -114,6 +153,7 @@ export async function cmdIndividualsAdd(
             name: opts.name,
             species: opts.species,
             photoCount: storedNames.length,
+            replaced: existing !== undefined,
             referenceDir: resolve(referenceDir, opts.name),
           },
           null,
@@ -122,7 +162,7 @@ export async function cmdIndividualsAdd(
       );
     } else {
       io.out(
-        `✓ Added "${opts.name}" (${opts.species}) with ${storedNames.length} photos\n`,
+        `✓ ${existing !== undefined ? 'Replaced' : 'Added'} "${opts.name}" (${opts.species}) with ${storedNames.length} photos\n`,
       );
       io.out(`  Reference dir: ${resolve(referenceDir, opts.name)}\n`);
       if (opts.threshold !== undefined) {
@@ -187,6 +227,7 @@ export async function cmdIndividualsRemove(
   opts: IndividualsRemoveOptions,
   io: CliIO,
 ): Promise<number> {
+  if (!checkName('remove', name, io)) return ExitCode.Misuse;
   const cfg = await loadFrameConfig(opts.config, io);
   if (cfg === undefined) return ExitCode.ConfigValidation;
   const dir = resolve(cfg.referenceDir, name);
@@ -217,6 +258,9 @@ export async function cmdIndividualsRecompute(
 ): Promise<number> {
   if (opts.all !== true && opts.name === undefined) {
     io.err('individuals recompute: pass either --name <name> or --all\n');
+    return ExitCode.Misuse;
+  }
+  if (opts.all !== true && opts.name !== undefined && !checkName('recompute', opts.name, io)) {
     return ExitCode.Misuse;
   }
   const cfg = await loadFrameConfig(opts.config, io);

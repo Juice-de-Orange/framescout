@@ -133,13 +133,14 @@ export function buildCli(io: CliIO = defaultIO): Command {
     .description('Manage named individuals (cats, etc.) for the individual-recognition detector');
   individuals
     .command('add')
-    .description('Register a new individual + reference photos')
-    .requiredOption('--name <name>', 'individual name (e.g. "tulli")')
+    .description('Register a new individual + reference photos (refuses an existing name unless --replace)')
+    .requiredOption('--name <name>', 'individual name: lowercase kebab-case (e.g. "tulli")')
     .option('--species <species>', 'species label (must match upstream onlyForLabels)', 'cat')
     .option('--photos <paths...>', 'reference photo paths (1 or more JPEGs)', [])
     .option('--threshold <value>', 'per-individual similarity threshold (overrides global)', (v) =>
       Number.parseFloat(v),
     )
+    .option('--replace', 'replace an existing individual of the same name')
     .option('--config <path>', 'config.yaml path', './config.yaml')
     .option('--json', 'machine-readable JSON output')
     .action(
@@ -148,6 +149,7 @@ export function buildCli(io: CliIO = defaultIO): Command {
         species: string;
         photos: string[];
         threshold?: number;
+        replace?: boolean;
         config: string;
         json?: boolean;
       }) => {

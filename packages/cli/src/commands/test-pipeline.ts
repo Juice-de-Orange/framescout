@@ -3,13 +3,14 @@ import {
   BoundedSinkWrapper,
   createMetricsRegistry,
   createPluginContext,
-  createRootLogger,
   decodeStub,
+  describeError,
   loadConfig,
   loadPlugin,
   runPipeline,
   scoreStub,
   type FramescoutConfig,
+  type FramescoutMetrics,
   type PipelineDetector,
   type PipelineSource,
 } from '@framescout/core';
@@ -20,6 +21,7 @@ import type {
   Source,
 } from '@framescout/plugin-api';
 
+import { createCaptureLogger, type CapturedProblem } from '../capture-logger.js';
 import { ExitCode } from '../exit-codes.js';
 import type { CliIO } from '../io.js';
 import { synthesizeEvent } from '../synth.js';
@@ -53,6 +55,8 @@ class StaticSource implements Source {
  * → observation stage → wrapped sinks** using stub decode/score
  * (no ffmpeg dep needed for the smoke run). On success the pipeline
  * processes the event, fans out to every configured sink, and exits 0.
+ * A detector that throws or times out, or a sink that fails to deliver,
+ * is reported with its cause and makes the command exit 1.
  *
  * The detector + sink plugins are real instances of whatever's in
  * `config.yaml`. Detectors that need a real JPEG should treat the
@@ -79,7 +83,9 @@ export async function cmdTestPipeline(
     return ExitCode.Misuse;
   }
 
-  const logger = createRootLogger({ level: 'silent' });
+  // Not a silent logger: the pipeline logs a failed detector or sink
+  // delivery and carries on, so the log is where the failures are.
+  const { logger, problems } = createCaptureLogger();
   const { metrics, router } = createMetricsRegistry({ includeDefaults: false });
   const abort = new AbortController();
 
@@ -149,8 +155,7 @@ export async function cmdTestPipeline(
       allCleanup.push(() => loaded.instance.stop());
     }
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    io.err(`plugin load failed: ${msg}\n`);
+    io.err(`plugin load failed: ${describeError(err)}\n`);
     await Promise.all(allCleanup.map((fn) => fn().catch(() => undefined)));
     abort.abort();
     return ExitCode.PluginLoad;
@@ -169,12 +174,32 @@ export async function cmdTestPipeline(
       exitOnIdleSources: true,
     });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    io.err(`pipeline run failed: ${msg}\n`);
+    io.err(`pipeline run failed: ${describeError(err)}\n`);
     return ExitCode.GenericFailure;
   } finally {
     await Promise.all(allCleanup.map((fn) => fn().catch(() => undefined)));
     abort.abort();
+  }
+
+  // The run itself resolves even when a stage failed (a daemon must
+  // survive one bad event). The counters say what really happened; the
+  // captured log lines say why.
+  const failures = await collectFailures(metrics, problems);
+  if (failures.length > 0) {
+    if (opts.json) {
+      io.out(
+        `${JSON.stringify({ ok: false, eventId: overrideEvent.eventId, failures })}\n`,
+      );
+    } else {
+      for (const f of failures) {
+        io.err(`  ✗ ${f.kind} ${f.id}: ${f.error}\n`);
+      }
+      io.err(
+        `✗ test pipeline run failed (event ${overrideEvent.eventId}): ` +
+          `${failures.length} stage(s) reported errors.\n`,
+      );
+    }
+    return ExitCode.GenericFailure;
   }
 
   if (opts.json) {
@@ -183,4 +208,58 @@ export async function cmdTestPipeline(
     io.out(`✓ test pipeline run completed (event ${overrideEvent.eventId}).\n`);
   }
   return ExitCode.Success;
+}
+
+interface StageFailure {
+  kind: 'detector' | 'sink' | 'pipeline';
+  id: string;
+  error: string;
+}
+
+async function collectFailures(
+  metrics: FramescoutMetrics,
+  problems: readonly CapturedProblem[],
+): Promise<StageFailure[]> {
+  const reason = (field: 'detector' | 'sink', id: string, fallback: string): string => {
+    const line = problems.find((p) => p.fields[field] === id);
+    if (line === undefined) return fallback;
+    return line.cause ?? line.msg;
+  };
+  const failures: StageFailure[] = [];
+
+  for (const v of (await metrics.detectorInferencesTotal.get()).values) {
+    if (v.value === 0 || v.labels.outcome === 'success') continue;
+    const id = String(v.labels.detector);
+    failures.push({
+      kind: 'detector',
+      id,
+      error: reason('detector', id, `detect() outcome: ${String(v.labels.outcome)}`),
+    });
+  }
+  for (const v of (await metrics.sinkDeliveriesTotal.get()).values) {
+    if (v.value === 0 || v.labels.outcome === 'success') continue;
+    const id = String(v.labels.sink);
+    failures.push({ kind: 'sink', id, error: reason('sink', id, 'delivery failed') });
+  }
+  for (const v of (await metrics.sinkDroppedTotal.get()).values) {
+    if (v.value === 0) continue;
+    const id = String(v.labels.sink);
+    if (failures.some((f) => f.kind === 'sink' && f.id === id)) continue;
+    failures.push({
+      kind: 'sink',
+      id,
+      error: `payload dropped (${String(v.labels.reason)})`,
+    });
+  }
+  for (const v of (await metrics.capturesTotal.get()).values) {
+    if (v.value === 0) continue;
+    if (v.labels.outcome !== 'failed' && v.labels.outcome !== 'decode_failed') continue;
+    const line = problems.find((p) => p.level === 'error' && p.cause !== undefined);
+    failures.push({
+      kind: 'pipeline',
+      id: String(v.labels.outcome),
+      error: line !== undefined ? `${line.msg}: ${line.cause}` : 'event processing failed',
+    });
+  }
+  return failures;
 }

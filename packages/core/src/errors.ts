@@ -2,6 +2,8 @@
 // specifier so upstream observability can attribute failures to a
 // specific plugin without parsing messages.
 
+import { redactUrlCredentials } from './logger.js';
+
 export class PluginLoadError extends Error {
   override readonly name: string = 'PluginLoadError';
 
@@ -105,5 +107,39 @@ export class InitFailed extends PluginLoadError {
 
   constructor(packageName: string, cause: unknown) {
     super(`Plugin "${packageName}" init() threw an error.`, packageName, { cause });
+  }
+}
+
+/**
+ * One-line description of an error for plain-text output (CLI results,
+ * the daemon's last `fatal:` line): the message followed by the message
+ * of every `cause`. Wrapper errors such as {@link InitFailed} say *that*
+ * something failed; the reason ("connect ECONNREFUSED …") sits in the
+ * cause and is what the operator needs to see. URL credentials are masked.
+ */
+export function describeError(err: unknown): string {
+  const parts: string[] = [];
+  let current: unknown = err;
+  for (let depth = 0; current !== undefined && current !== null && depth < 5; depth += 1) {
+    const message =
+      current instanceof Error
+        ? current.message || current.name
+        : typeof current === 'string'
+          ? current
+          : safeJson(current);
+    // Sentence-style wrapper messages end in a period; drop it before the
+    // next part is appended with ": ".
+    const part = message.replace(/\.$/u, '');
+    if (part !== '' && !parts.some((p) => p.includes(part))) parts.push(part);
+    current = current instanceof Error ? current.cause : undefined;
+  }
+  return redactUrlCredentials(parts.join(': '));
+}
+
+function safeJson(value: unknown): string {
+  try {
+    return JSON.stringify(value) ?? String(value);
+  } catch {
+    return String(value);
   }
 }

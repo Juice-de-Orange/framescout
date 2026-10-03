@@ -21,7 +21,7 @@
     "@framescout/plugin-api": "workspace:^"
   },
   "dependencies": {
-    "zod": "^3.23.0"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@framescout/plugin-api": "workspace:^",

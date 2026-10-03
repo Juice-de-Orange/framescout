@@ -49,10 +49,10 @@
     "api-extractor:check": "api-extractor run --verbose"
   },
   "peerDependencies": {
-    "zod": "^3.23.0"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
-    "zod": "^3.23.0"
+    "zod": "^4.6.5"
   },
   "publishConfig": {
     "access": "public",

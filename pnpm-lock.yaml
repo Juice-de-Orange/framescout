@@ -113,8 +113,8 @@ importers:
         specifier: ^2.6.1
         version: 2.9.0
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: ^4.6.5
+        version: 4.6.5
 
   apps/docs-site:
     dependencies:
@@ -207,11 +207,11 @@ importers:
         specifier: ^2.6.1
         version: 2.9.0
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: ^4.6.5
+        version: 4.6.5
       zod-to-json-schema:
         specifier: ^3.23.5
-        version: 3.25.2(zod@3.25.76)
+        version: 3.25.2(zod@4.6.5)
     devDependencies:
       '@types/semver':
         specifier: ^7.5.8
@@ -229,8 +229,8 @@ importers:
         specifier: ^4.0.1
         version: 4.0.3
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: ^4.6.5
+        version: 4.6.5
     devDependencies:
       '@framescout/plugin-api':
         specifier: workspace:^
@@ -239,8 +239,8 @@ importers:
   packages/detector-deepfaune-http:
     dependencies:
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: ^4.6.5
+        version: 4.6.5
     devDependencies:
       '@framescout/plugin-api':
         specifier: workspace:^
@@ -264,8 +264,8 @@ importers:
         specifier: ^0.35.4
         version: 0.35.5(@types/node@22.19.19)
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: ^4.6.5
+        version: 4.6.5
     devDependencies:
       '@framescout/plugin-api':
         specifier: workspace:^
@@ -274,8 +274,8 @@ importers:
   packages/detector-megadetector-http:
     dependencies:
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: ^4.6.5
+        version: 4.6.5
     devDependencies:
       '@framescout/plugin-api':
         specifier: workspace:^
@@ -290,14 +290,14 @@ importers:
   packages/plugin-api:
     devDependencies:
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: ^4.6.5
+        version: 4.6.5
 
   packages/sink-file-ndjson:
     dependencies:
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: ^4.6.5
+        version: 4.6.5
     devDependencies:
       '@framescout/plugin-api':
         specifier: workspace:^
@@ -306,8 +306,8 @@ importers:
   packages/sink-http-multipart:
     dependencies:
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: ^4.6.5
+        version: 4.6.5
     devDependencies:
       '@framescout/plugin-api':
         specifier: workspace:^
@@ -331,8 +331,8 @@ importers:
         specifier: ^5.10.0
         version: 5.15.1
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: ^4.6.5
+        version: 4.6.5
     devDependencies:
       '@framescout/plugin-api':
         specifier: workspace:^
@@ -344,8 +344,8 @@ importers:
   packages/sink-webhook:
     dependencies:
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: ^4.6.5
+        version: 4.6.5
     devDependencies:
       '@framescout/plugin-api':
         specifier: workspace:^
@@ -354,8 +354,8 @@ importers:
   packages/source-reolink-hub:
     dependencies:
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: ^4.6.5
+        version: 4.6.5
     devDependencies:
       '@framescout/plugin-api':
         specifier: workspace:^
@@ -364,8 +364,8 @@ importers:
   tests/e2e/fixtures/source-stub:
     dependencies:
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: ^4.6.5
+        version: 4.6.5
     devDependencies:
       '@framescout/plugin-api':
         specifier: workspace:^
@@ -4329,9 +4329,6 @@ packages:
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
-  zod@4.4.3:
-    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
-
   zod@4.6.5:
     resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
 
@@ -4480,7 +4477,7 @@ snapshots:
     dependencies:
       sitemap: 9.0.1
       stream-replace-string: 2.0.0
-      zod: 4.4.3
+      zod: 4.6.5
 
   '@astrojs/starlight@0.41.5(astro@7.3.5(@types/node@24.12.4)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.9.0))(typescript@5.9.3)':
     dependencies:
@@ -8900,10 +8897,6 @@ snapshots:
 
   zimmerframe@1.1.4: {}
 
-  zod-to-json-schema@3.25.2(zod@3.25.76):
-    dependencies:
-      zod: 3.25.76
-
   zod-to-json-schema@3.25.2(zod@4.6.5):
     dependencies:
       zod: 4.6.5
@@ -8913,8 +8906,6 @@ snapshots:
       zod: 3.25.76
 
   zod@3.25.76: {}
-
-  zod@4.4.3: {}
 
   zod@4.6.5: {}
 

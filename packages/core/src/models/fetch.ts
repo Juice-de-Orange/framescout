@@ -204,13 +204,12 @@ async function sha256OrUndefined(path: string): Promise<string | undefined> {
   } catch {
     return undefined;
   }
+  // Iterate the stream directly: a pipeline ending in a generator
+  // that yields stalls once the unread output fills its buffer.
   const hash = createHash('sha256');
-  await pipeline(createReadStream(path), async function* (source) {
-    for await (const chunk of source) {
-      hash.update(chunk as Buffer);
-      yield chunk;
-    }
-  });
+  for await (const chunk of createReadStream(path)) {
+    hash.update(chunk as Buffer);
+  }
   return hash.digest('hex');
 }
 

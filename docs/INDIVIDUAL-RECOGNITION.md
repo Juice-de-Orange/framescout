@@ -3,8 +3,8 @@
 > **Status:** **shipped on `main`** as of 2026-05-16 (Sprints A-D).
 > Pre-cutover steps for the maintainer documented in
 > [`migrating-from-a-legacy-ingest.md` §4](migrating-from-a-legacy-ingest.md#4-optional-register-named-individuals)
-> (one-time `framescout models fetch dinov2-small --pin` to lock the
-> backbone SHA, then `framescout individuals add` per cat).
+> (`framescout models fetch dinov2-small` — the backbone SHA is pinned in
+> the registry —, then `framescout individuals add` per cat).
 > **Author:** maintainer + Claude session 2026-05-16.
 > **Plugin-API impact:** none. Forward-compat fields land via
 > `Detection.extra`; Plugin-API stays frozen at `@0.1.0`.

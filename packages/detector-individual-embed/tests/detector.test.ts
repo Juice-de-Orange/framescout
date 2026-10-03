@@ -16,10 +16,9 @@ import { IndividualEmbedDetector } from '../src/detector.js';
  * End-to-end detector integration test using a mock ONNX session.
  *
  * Why mock: the real golden-accuracy gate against DINOv2-small + a
- * curated cat photo dataset needs (1) the maintainer to run
- * `framescout models fetch dinov2-small --pin` once to verify-and-pin
- * the SHA, and (2) ~10-20 reference photos per cat. Neither can live
- * in CI, so the golden-accuracy gate stays a manual release step.
+ * curated cat photo dataset needs (1) the ~85 MB backbone download
+ * and (2) ~10-20 reference photos per cat. Neither can live in CI, so
+ * the golden-accuracy gate stays a manual release step.
  *
  * This test validates the integration glue — detect() consumes
  * previousDetections, embeds via the session, matches against loaded

@@ -1,5 +1,11 @@
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -80,6 +86,23 @@ describe('models/fetch', () => {
     expect(second.sha256).toBe(fixtureSha);
   });
 
+  it('recognises a cached file larger than the stream buffer', async () => {
+    // A real backbone is ~85 MB. Hashing must drain the read stream;
+    // an 8 KiB fixture fits one buffer and hides a stalled pipeline.
+    const big = new Uint8Array(4 * 1024 * 1024).fill(7);
+    mkdirSync(join(dataDir, 'models'), { recursive: true });
+    writeFileSync(join(dataDir, 'models', 'big-fixture.onnx'), big);
+    const result = await fetchModel('big-fixture', {
+      dataDir,
+      entry: {
+        ...entry,
+        sha256: createHash('sha256').update(big).digest('hex'),
+        sizeBytes: big.length,
+      },
+    });
+    expect(result.cached).toBe(true);
+  });
+
   it('refuses when the registry sha is the pin-pending placeholder', async () => {
     const unpinned: BackboneEntry = {
       ...entry,
@@ -135,12 +158,14 @@ describe('models/fetch', () => {
 });
 
 describe('verifyModels', () => {
-  it('reports not-pinned for the bundled dinov2-small entry', async () => {
+  it('reports missing for the pinned dinov2-small entry and not-pinned for the classifier', async () => {
     const dataDir = mkdtempSync(join(tmpdir(), 'framescout-verifymodels-'));
     try {
       const result = await verifyModels(dataDir);
       const dinov2 = result.find((e) => e.name === 'dinov2-small');
-      expect(dinov2?.status).toBe('not-pinned');
+      expect(dinov2?.status).toBe('missing');
+      const classifier = result.find((e) => e.name === 'framescout-classifier-v1');
+      expect(classifier?.status).toBe('not-pinned');
     } finally {
       rmSync(dataDir, { recursive: true, force: true });
     }

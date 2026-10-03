@@ -57,15 +57,21 @@ flowchart LR
   studio["Studio + trainer<br/>(Python, GPU)"] -.deploys model.-> inf
 ```
 
-The daemon stays light (no ONNX runtime needed); heavy inference runs in HTTP services that can
-live on another machine — see [`examples/split-host/`](examples/split-host). Details:
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Heavy inference (MegaDetector, the species classifier) runs in HTTP services that can live on
+another machine — see [`examples/split-host/`](examples/split-host); the daemon decodes, scores
+and routes. The one model that runs inside the daemon is the optional
+`detector-individual-embed` plugin: the image carries `onnxruntime-node` (CPU) for it, loaded only
+when that plugin is configured. Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Quick start
 
-You need a Reolink hub or NVR on your LAN and, for species detection, a MegaDetector and a
-DeepFaune (or own-model) HTTP service. The full five-minute walkthrough is in
-[docs/quickstart.md](docs/quickstart.md).
+You need a Reolink hub or NVR on your LAN. For species detection you also need a MegaDetector and
+a DeepFaune (or own-model) HTTP service — **this repository does not ship a MegaDetector or
+DeepFaune service**. You bring your own HTTP wrapper around those models; the small wire contract
+is in [docs/detectors/megadetector-http.md](docs/detectors/megadetector-http.md) and
+[docs/detectors/deepfaune-http.md](docs/detectors/deepfaune-http.md). For a classifier you trained
+yourself, the bundled [`services/inference-server`](services/inference-server) is that service.
+The full walkthrough is in [docs/quickstart.md](docs/quickstart.md).
 
 ```bash
 git clone https://github.com/Juice-de-Orange/framescout.git && cd framescout
@@ -74,10 +80,28 @@ $EDITOR config.yaml           # set the hub address, cameras and sinks
 docker compose up --build     # builds the daemon image from source
 ```
 
+**Replace the placeholders in `config.yaml` before the first start.** The shipped file points at
+two hosts that do not exist on your network — the hub (`https://192.0.2.50`) and the MQTT broker
+(`mqtt://homeassistant.local`) — and at detector endpoints on `localhost`. A source or sink that
+cannot be reached at startup is fatal: the daemon logs
+`InitFailed: Plugin "…" init() threw an error`, exits with code 1 and the container restarts in a
+loop, so the UI never comes up. Set real addresses or delete the entries you do not use
+([troubleshooting](docs/troubleshooting.md#the-daemon-wont-start)).
+
 Then open <http://localhost:9090/ui> and log in with the token the daemon generated on first start:
 `docker compose exec framescout cat /var/lib/framescout/.ui-token`.
-From the first release on, the prebuilt multi-arch image is `ghcr.io/juice-de-orange/framescout`
-and the plugins are published under the `@framescout` npm scope.
+
+- **Opening the UI from another machine** answers `403 forbidden_origin` until the name or IP you
+  type into the browser is listed in `framescout.ui.allowedHosts`
+  ([operator UI → first-time auth](docs/operator-ui.md#first-time-auth)).
+- **The config editor is validate-only in this compose file.** `config.yaml` is mounted read-only
+  into a read-only container, so **Save & Restart** answers `423 config_readonly`; edit the file
+  on the host and `docker compose restart`, or mount a writable config directory as described in
+  [operator UI → saving from the UI](docs/operator-ui.md#saving-from-the-ui-in-the-hardened-compose).
+
+No image or npm package is published yet. From the first release on, the prebuilt multi-arch image
+is `ghcr.io/juice-de-orange/framescout` and the plugins are published under the `@framescout` npm
+scope; until then build from source as shown above.
 
 ## Built-in plugins
 

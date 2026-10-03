@@ -768,7 +768,7 @@ and the loader refuses incompatible plugins.
   `apps/ui/` Preact bundle served by the daemon HTTP server at `/ui`,
   with `/api/*` JSON + SSE alongside `/healthz /readyz /metrics`. Auth
   is a Bearer token written to `<dataDir>/.ui-token` (mode 0600) at
-  daemon start; default bind is `127.0.0.1`. Full design in
+  daemon start; default bind is `0.0.0.0` (`framescout.ui.bind`). Full design in
   `docs/FOUNDATION.md` §4-6. Earlier drafts of this section described
   the admin UI as "a separate package consuming Framescout's HTTP API";
   that was changed during v0.2 planning because in-daemon-hosting

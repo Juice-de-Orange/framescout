@@ -6,15 +6,23 @@ across three machines:
 | Host        | Role                          | Runs                                            |
 |-------------|-------------------------------|-------------------------------------------------|
 | **Main PC** | training only (GPU, sometimes)| [`training/`](../../training)                   |
-| **Inference host**| heavy inference (CPU VPS, always on) | `inference-server` + MegaDetector (CPU)         |
+| **Inference host**| heavy inference (CPU VPS, always on) | `inference-server` + your own MegaDetector HTTP service (CPU) |
 | **Daemon host** | the pipeline (always-on)      | `@framescout/daemon` — polls Reolink → ingest endpoint |
 
-The daemon on the daemon host stays light: no ONNX runtime, no `sharp`. It calls
-The inference host over HTTP for both localisation (MegaDetector) and species +
+The daemon on the daemon host runs no model: it decodes clips, scores frames and calls
+the inference host over HTTP for both localisation (MegaDetector) and species +
 individual classification (your model), then POSTs the result to
 the ingest endpoint in the byte-compatible `bulletin-v1` shape.
 
 ## Bring it up
+
+> **Before the first release** the image `ghcr.io/juice-de-orange/framescout:v0.2.0` is not
+> published yet. Build it from the repository root under that tag and the compose file works
+> unchanged: `docker build -t ghcr.io/juice-de-orange/framescout:v0.2.0 .`
+
+The MegaDetector service is **not included**: `docker-compose.inference.yml` only carries a
+commented placeholder for it. Framescout ships the classifier side (`services/inference-server`);
+the MegaDetector HTTP wrapper is yours ([contract](../../docs/detectors/megadetector-http.md)).
 
 ```bash
 # 1. Train + export on the main PC (see training/README.md), then ship

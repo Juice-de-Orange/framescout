@@ -182,7 +182,24 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<void> {
   try {
     for await (const { event, source } of merged) {
       if (opts.abortSignal.aborted) break;
-      await processEvent({ event, source, opts, pipelineRunId, log });
+      try {
+        await processEvent({ event, source, opts, pipelineRunId, log });
+      } catch (err) {
+        // Last line of defence: a failure while handling one event
+        // (score, crop, observation) is that event's problem only.
+        opts.metrics.capturesTotal.inc(
+          {
+            deployment: event.deploymentId,
+            camera: event.cameraId,
+            outcome: 'failed',
+          },
+          1,
+        );
+        log.error(
+          { err, eventId: event.eventId, source: source.instanceId },
+          'event processing failed; skipping event',
+        );
+      }
     }
     // Every Source iterator has ended naturally (or the source list
     // was empty to begin with). For the production daemon we keep the
@@ -308,7 +325,24 @@ async function processEvent(args: {
   // ── decode (ffmpeg by default; injectable for tests) ─────────────
   const decode = opts.decode ?? defaultDecode;
   const decodeEnd = opts.metrics.pipelineStageSeconds.startTimer({ stage: 'decode' });
-  const frames = await decode(event, { signal: opts.abortSignal });
+  let frames: readonly Frame[];
+  try {
+    frames = await decode(event, { signal: opts.abortSignal });
+  } catch (err) {
+    decodeEnd();
+    // Shutdown kills the ffmpeg subprocess; that is not a bad clip.
+    if (opts.abortSignal.aborted) return;
+    // One clip ffmpeg cannot read (truncated download, unsupported
+    // codec, hub answered with an error page) must not take the
+    // pipeline down. Count it, name the event, move on — the source
+    // keeps iterating, so its watermark advances past the clip.
+    opts.metrics.capturesTotal.inc({ ...labels, outcome: 'decode_failed' }, 1);
+    log.error(
+      { err, eventId: event.eventId, source: source.instanceId },
+      'decode failed; skipping event',
+    );
+    return;
+  }
   decodeEnd();
   opts.metrics.framesExtractedTotal.inc(labels, frames.length);
 

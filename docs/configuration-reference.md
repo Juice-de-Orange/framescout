@@ -23,6 +23,12 @@ IDE-consumable JSON Schema, then drop
 `# yaml-language-server: $schema=./config.schema.json` at the top of
 `config.yaml` for inline editor validation.
 
+Keys the schema does not know are rejected (`Unrecognized key(s) in
+object`; `framescout config validate` exits with code 3, the daemon
+does not start) at every level the core owns — top level,
+`framescout.*`, deployments, cameras and the plugin entries. The
+content of a plugin's `config:` block is validated by that plugin.
+
 ### `framescout`
 
 | Key             | Type     | Default              | Description |
@@ -30,7 +36,7 @@ IDE-consumable JSON Schema, then drop
 | `dataDir`       | string   | `/var/lib/framescout`| Writable directory where each plugin instance gets its own `<dataDir>/<instanceId>/` subdirectory. Also holds `<dataDir>/.ui-token` (mode 0600) for the operator UI. |
 | `metricsPort`   | integer  | `9090`               | TCP port for the combined `/healthz`, `/readyz`, `/metrics`, `/api/*`, `/ui` surface. `0` disables the HTTP server entirely. |
 | `crashBudget`   | object   | (5/5min/2s)          | Rolling-window source-failure budget. See **`crashBudget`** below. |
-| `ui`            | object   | (enabled, 127.0.0.1) | Operator UI mount + CSRF allowlists + session TTL. See **`ui`** below. |
+| `ui`            | object   | (enabled, `0.0.0.0`) | Operator UI mount, bind address, CSRF allowlists, session TTL. See **`ui`** below. |
 | `imageOutput`   | object   | (1280×720 / q80)     | Target canvas + JPEG quality for the bestFrame in `SinkPayload`. See **`imageOutput`** below. |
 | `labelQueue`    | object   | (on, 2000, `queue`)  | Persist every animal crop to `<dataDir>/<dir>/` for the training studio to label later. See **`labelQueue`** below. |
 
@@ -74,6 +80,7 @@ which hostnames the daemon trusts and how long sessions live.
 | `allowedHosts`   | string[]  | `['127.0.0.1', 'localhost']`     | `Host` header allowlist (DNS-rebinding defence). The daemon implicitly appends `127.0.0.1` and `localhost` if missing. |
 | `allowedOrigins` | string[]  | `[]` (derived from port+host)    | `Origin` header allowlist for state-changing methods. Daemon derives a default from the metrics port + each allowed host — set this when serving the UI behind a reverse proxy. |
 | `sessionTtlHours`| integer   | `8`                              | Session-cookie lifetime in hours. |
+| `bind`           | string    | `0.0.0.0`                        | Address the HTTP server listens on — the whole surface (`/ui`, `/api/*`, `/healthz`, `/readyz`, `/metrics`), also when `enabled: false`. `0.0.0.0` is what a container needs for a published port; set `127.0.0.1` to stay on the loopback interface (useful with `network_mode: host`). |
 
 Operator boots the UI by visiting `http://<daemon-host>:9090/ui` and
 pasting the contents of `<dataDir>/.ui-token`. Rotation is "stop the
@@ -251,7 +258,7 @@ requires a container restart in v0.1 (ARCHITECTURE.md §10).
 | Variable        | Effect                                                           |
 |-----------------|------------------------------------------------------------------|
 | `CONFIG_PATH`   | Path to `config.yaml`. Default `./config.yaml`.                  |
-| `METRICS_PORT`  | Override `framescout.metricsPort`. `0` disables HTTP surface.    |
+| `METRICS_PORT`  | Override `framescout.metricsPort`. `0` disables HTTP surface. The container healthcheck probes this port (default 9090), so change the port here rather than only in `config.yaml`. |
 | `LOG_LEVEL`     | `trace` \| `debug` \| `info` \| `warn` \| `error`. Default `info`. |
 | any `*Env` / `!env`-referenced var | Plugin secrets and substituted values.  |
 

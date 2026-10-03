@@ -65,6 +65,11 @@ docker build -t framescout:dev .
 docker compose up --build       # uses ./config.yaml and ./.env
 ```
 
+The image is based on `node:22-bookworm-slim` (Debian, glibc — `onnxruntime-node`, used by
+`detector-individual-embed`, has no musl build) and is about 1.2 GB as listed by `docker images`:
+roughly 475 MB of that is Debian's `ffmpeg` with its codec libraries, the rest Node, the daemon
+tree and the CPU build of ONNX Runtime. It is a complete runtime, not a minimal one.
+
 The image runs as uid 1001. The compose files use a named volume for `/var/lib/framescout`; if
 you bind-mount a host directory instead, create it first and `chown 1001:1001` it, or the daemon
 cannot write its UI token and exits with `EACCES`.
@@ -100,6 +105,6 @@ bundle — CI fails on a stale one.
 | Daemon exits right after start with `InitFailed … source-reolink-hub` | The hub in `config.yaml` is unreachable (the examples use the placeholder `192.0.2.50`) | Set your hub's address, or use the stub setup above |
 | `EACCES … .ui-token` on start | Bind-mounted data directory not writable by uid 1001 | Use the named volume or `chown 1001:1001` the directory |
 | Decode tests reported as skipped | `ffmpeg` not installed | Install ffmpeg |
-| Container stays `unhealthy` | Healthcheck cannot reach `/healthz` | Check `metricsPort` is 9090 inside the container (`METRICS_PORT` overrides it) |
+| Container stays `unhealthy` | Healthcheck cannot reach `/healthz` | The healthcheck probes `METRICS_PORT` (default 9090). If you changed the port only in `config.yaml`, set `METRICS_PORT` to the same value |
 
 More runtime issues: [`docs/troubleshooting.md`](troubleshooting.md).

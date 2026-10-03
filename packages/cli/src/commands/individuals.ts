@@ -2,21 +2,24 @@ import { copyFile, mkdir, readdir, readFile, rm, stat } from 'node:fs/promises';
 import { extname, basename, resolve } from 'node:path';
 
 import { loadConfig } from '@framescout/core';
-import {
-  embedFromJpeg,
-  loadAllCentroids,
-  loadSession,
-  meanEmbeddings,
-  resolveBackbone,
-  writeCentroid,
-  type BackboneConfig,
-  type IndividualManifest,
-  type Session,
+import type {
+  BackboneConfig,
+  IndividualManifest,
+  Session,
 } from '@framescout/detector-individual-embed';
 import { ulid } from 'ulid';
 
 import { ExitCode } from '../exit-codes.js';
 import type { CliIO } from '../io.js';
+
+/**
+ * The embed package pulls in `onnxruntime-node`, a native binding. It is
+ * imported on first use rather than at module load so that every other
+ * subcommand (`version`, `config …`, `test …`) keeps working on a host
+ * where that binding cannot be loaded.
+ */
+const loadEmbed = (): Promise<typeof import('@framescout/detector-individual-embed')> =>
+  import('@framescout/detector-individual-embed');
 
 /**
  * `framescout individuals add` — register a new individual + reference
@@ -45,6 +48,7 @@ export async function cmdIndividualsAdd(
   if (cfg === undefined) return ExitCode.ConfigValidation;
   const { backbone, referenceDir } = cfg;
 
+  const { embedFromJpeg, meanEmbeddings, writeCentroid } = await loadEmbed();
   io.out(`Loading backbone (${backbone.kind})…\n`);
   const session = await openSession(backbone, cfg.dataDir);
 
@@ -141,6 +145,7 @@ export async function cmdIndividualsList(
 ): Promise<number> {
   const cfg = await loadFrameConfig(opts.config, io);
   if (cfg === undefined) return ExitCode.ConfigValidation;
+  const { loadAllCentroids } = await loadEmbed();
   const loaded = await loadAllCentroids(cfg.referenceDir);
   if (opts.json === true) {
     const summary = loaded.map((c) => ({
@@ -230,6 +235,7 @@ export async function cmdIndividualsRecompute(
     return ExitCode.Success;
   }
 
+  const { embedFromJpeg, meanEmbeddings, writeCentroid } = await loadEmbed();
   io.out(`Loading backbone (${cfg.backbone.kind})…\n`);
   const session = await openSession(cfg.backbone, cfg.dataDir);
   const updated: string[] = [];
@@ -331,6 +337,7 @@ async function openSession(
   backbone: BackboneConfig,
   dataDir: string,
 ): Promise<Session> {
+  const { loadSession, resolveBackbone } = await loadEmbed();
   const resolved = await resolveBackbone(backbone, { dataDir });
   return loadSession(resolved);
 }

@@ -66,7 +66,7 @@ Prometheus text exposition with Node process metrics + the
 
 | Metric                              | Type      | Labels                              | Description |
 |-------------------------------------|-----------|-------------------------------------|-------------|
-| `framescout_captures_total`         | counter   | `deployment`, `camera`, `outcome`   | Capture events from Source plugins. `outcome` ∈ `received \| emitted \| dropped_blank \| no_frames`. |
+| `framescout_captures_total`         | counter   | `deployment`, `camera`, `outcome`   | Capture events from Source plugins. `outcome` ∈ `received \| emitted \| dropped_blank \| no_frames \| decode_failed` (ffmpeg could not read the clip; event skipped) `\| failed` (any later stage threw; event skipped). |
 | `framescout_frames_extracted_total` | counter   | `deployment`, `camera`              | Frames produced by the decode stage. |
 | `framescout_pipeline_stage_seconds` | histogram | `stage`                             | Per-stage wall-clock. `stage` ∈ `decode \| score \| detect \| observe \| fan_out`. |
 

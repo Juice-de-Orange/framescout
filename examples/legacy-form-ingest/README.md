@@ -25,6 +25,10 @@ examples/legacy-form-ingest/
 
 ## Quick start
 
+> **Before the first release** the image `ghcr.io/juice-de-orange/framescout:v0.2.0` is not
+> published yet. Build it from the repository root under that tag and the compose file works
+> unchanged: `docker build -t ghcr.io/juice-de-orange/framescout:v0.2.0 .`
+
 ```bash
 cp .env.example .env
 $EDITOR .env                  # fill in Reolink, ingest token and MQTT secrets

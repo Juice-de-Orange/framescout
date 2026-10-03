@@ -7,9 +7,10 @@ ARCHITECTURE.md §7.3.
 
 ## What you point it at
 
-You bring your own HTTP wrapper around the MegaDetector model. We've
-verified the plugin against `MDV6-yolov10-c` running behind a thin
-FastAPI / Flask / triton-server frontend. The wire shape we expect:
+**Framescout does not ship a MegaDetector service, image or reference
+wrapper.** You bring your own HTTP wrapper around the MegaDetector
+model — a thin FastAPI / Flask frontend is enough — and point `endpoint`
+at it. The wire shape the plugin speaks:
 
 ```http
 POST /detect HTTP/1.1
@@ -55,7 +56,7 @@ detectors:
 
 | Key                            | Default | Description |
 |--------------------------------|---------|-------------|
-| `endpoint`                     | (req.)  | Full URL of the MD HTTP service. |
+| `endpoint`                     | (req.)  | Full URL each frame is POSTed to, path included (`/detect` above). The plugin appends nothing to it. |
 | `apiKeyEnv`                    | —       | Env var holding a bearer token. Sent as `Authorization: Bearer <value>`. |
 | `modelVersion`                 | `v6.0`  | Embedded as `Detection.modelVersion`; downstream consumers route on `<modelName>@<modelVersion>`. |
 | `minConfidence`                | `0.4`   | Detections below this confidence are dropped. |
@@ -89,13 +90,11 @@ side; this plugin labels its emitted detections with the
 `modelVersion` from `config.yaml` so observation rows are traceable
 back to the exact model. Lockstep the two values when you upgrade.
 
-For reference deployments:
-
-- The Pythonic [`megadetector`](https://github.com/agentmorris/MegaDetector)
-  reference repo wraps the model with FastAPI; tested with
-  `MDV6-yolov10-c`.
-- Cloud-hosted wrappers (Microsoft AI for Earth's container image)
-  accept the same multipart contract.
+The model and its Python API come from the upstream
+[`MegaDetector`](https://github.com/agentmorris/MegaDetector) project;
+the HTTP wrapper that turns one multipart `image` upload into the JSON
+above is yours to write and run. `examples/split-host/` shows where such
+a service sits in a deployment.
 
 ## Metrics
 

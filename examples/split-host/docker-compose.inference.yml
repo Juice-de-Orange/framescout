@@ -1,7 +1,8 @@
 # Runs on the inference host (a CPU-only VPS, always on). The heavy inference services:
 #   - inference-server : your fine-tuned classifier (species + embedding)
 #   - megadetector     : localisation + the person class for the privacy
-#                        gate (bring your own MegaDetector HTTP image)
+#                        gate — NOT part of Framescout, bring your own
+#                        (see the commented block at the bottom)
 # Both CPU. Port 8001/8002 are reached from the daemon host over the network — put
 # them behind a firewall / tailnet; the API keys are the only auth.
 services:
@@ -24,13 +25,18 @@ services:
       # or fetch the pinned registry artefact).
       - ./models:/models:ro
 
-  # Bring your own MegaDetector HTTP service. Any image exposing the
-  # MegaDetector wire contract on :8001 works; example placeholder:
-  megadetector:
-    image: ghcr.io/your-org/megadetector-http:latest
-    container_name: megadetector
-    restart: unless-stopped
-    environment:
-      API_KEY: ${MEGADETECTOR_API_KEY:?set MEGADETECTOR_API_KEY}
-    ports:
-      - "8001:8001"
+  # ── PLACEHOLDER — bring your own MegaDetector HTTP service ─────────
+  # Framescout does not ship or publish a MegaDetector image. Build your
+  # own wrapper that speaks the contract in
+  # docs/detectors/megadetector-http.md (POST /detect, multipart `image`),
+  # put its image name below and uncomment the block. Until you do, remove
+  # the `megadetector` detector from config.daemon.yaml or every event
+  # ends without detections.
+  #
+  # megadetector:
+  #   image: <your-megadetector-http-image>
+  #   restart: unless-stopped
+  #   environment:
+  #     API_KEY: ${MEGADETECTOR_API_KEY:?set MEGADETECTOR_API_KEY}
+  #   ports:
+  #     - "8001:8001"

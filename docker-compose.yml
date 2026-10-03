@@ -1,6 +1,6 @@
-# Local-dev composition. Builds the daemon from source; for the
-# published image use `ghcr.io/juice-de-orange/framescout:v0.2.x`
-# directly. `network_mode: host` is required so the daemon can poll
+# Local-dev composition. Builds the daemon from source; from the first
+# release on, the published image is
+# `ghcr.io/juice-de-orange/framescout:v0.2.x`. `network_mode: host` is required so the daemon can poll
 # Reolink hubs on the same LAN without explicit port mapping.
 
 services:
@@ -22,6 +22,8 @@ services:
       - path: .env
         required: false
     volumes:
+      # Read-only: the operator UI can validate the config but not save it
+      # (423 config_readonly). docs/operator-ui.md shows the writable variant.
       - ./config.yaml:/app/config.yaml:ro
       # Named volume: Docker creates it owned by the image user (uid 1001).
       # A bind mount would need `mkdir data && sudo chown 1001:1001 data` first.

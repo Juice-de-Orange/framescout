@@ -34,7 +34,7 @@ cp studio.toml.example studio.toml && $EDITOR studio.toml
 framescout:
   labelQueue: { enabled: true }            # on by default
   ui:
-    bind: 0.0.0.0                           # reachable on the LAN
+    bind: 0.0.0.0                           # the default — reachable on the LAN
     allowedHosts: ['daemon-host.local']            # the host the studio connects to
     allowedOrigins: ['http://daemon-host.local:9090']
 ```

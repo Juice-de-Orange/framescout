@@ -120,14 +120,14 @@ detectors:
   - id: megadetector
     package: '@framescout/detector-megadetector-http'
     config:
-      endpoint: http://localhost:8001
+      endpoint: http://localhost:8001/detect
       apiKeyEnv: MEGADETECTOR_API_KEY
       minConfidence: 0.4
       skipFramesWithPersonAbove: 0.15     # explicit privacy gate
   - id: deepfaune
     package: '@framescout/detector-deepfaune-http'
     config:
-      endpoint: http://localhost:8002
+      endpoint: http://localhost:8002/classify
       apiKeyEnv: DEEPFAUNE_API_KEY
 
 sinks:

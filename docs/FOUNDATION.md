@@ -146,7 +146,7 @@ A v0.2 release is acceptable when:
 | ADR-07 | Per-camera sensitivity: **schema reservation in v0.2, pipeline wiring in v0.3** | Accepted | Pipeline-layer override mechanism is its own design (where in the chain? per detector or per source? bbox-rescaling?). Reserving schema fields makes configs forward-compat | Wait for v0.3 (rejected: blocks UI feature), wire half (rejected: half-baked UX) |
 | ADR-08 | Adaptive-crop in UI: **read-only preview** with `paddingFactor` slider | Accepted | Backlog #7 says adaptive-crop is dead code; wiring it into observation/sink payloads is its own design. UI preview proves the algorithm to the operator without pipeline impact | Skip (rejected: user explicitly asked for it), wire it (rejected: scope drift) |
 | ADR-09 | Auth: **Bearer token mandatory** (no opt-out), `<dataDir>/.ui-token` mode 0600, sessionStorage on the client, Origin + Host check on state-changing routes | Accepted | DNS rebinding + CSRF are real on `127.0.0.1`-bound services; 80 LOC stops both; bind-defaults are 127.0.0.1 anyway | Optional auth via config flag (rejected: two code paths to maintain), mTLS (rejected: too heavy for single-operator) |
-| ADR-10 | Default bind: **`127.0.0.1`**; opt-in for `0.0.0.0` via `framescout.ui.bind` | Accepted | Container operator must explicitly request remote access; reverse-proxy is the recommended path for remote UI | Default `0.0.0.0` (rejected: exposes the API by default), no choice (rejected: kills container-deployed remote use case) |
+| ADR-10 | ~~Default bind: **`127.0.0.1`**; opt-in for `0.0.0.0` via `framescout.ui.bind`~~ — **amended 2026-10:** default bind is `0.0.0.0`, opt-in for `127.0.0.1` via `framescout.ui.bind`. The original default was never implemented: the daemon ships as a container, where a loopback bind makes the published port (and Prometheus scraping of `/metrics` on the same server) unreachable. Token + Host/Origin allowlists are the access control | Amended | Container operator must explicitly request remote access; reverse-proxy is the recommended path for remote UI | Default `0.0.0.0` (rejected: exposes the API by default), no choice (rejected: kills container-deployed remote use case) |
 
 ## 4. API surface
 
@@ -271,7 +271,7 @@ status. Common codes:
 | Untrusted local user on the same host opens `http://127.0.0.1:9090/ui` | Read all observations, change config | Bearer-token check — token requires filesystem read of `<dataDir>/.ui-token` (mode 0600, owned by daemon user) |
 | **DNS rebinding** — attacker controls a domain that resolves first to attacker-IP then to `127.0.0.1` | CSRF-like config write from a malicious page | `Host` header allowlist (`localhost`, `127.0.0.1`, plus any explicit `framescout.ui.allowedHosts`) on every request |
 | **CSRF** — user has UI session, attacker page makes `PUT /api/config` via `fetch` | Config corruption | `Origin` header allowlist on state-changing methods; PUT/POST/DELETE without matching Origin → 403 `forbidden_origin` |
-| Container bound to `0.0.0.0` accidentally | Internet-exposed config write | UI logs at INFO on every start: `"UI bound to <addr>; token in <path>"`; UI default bind is `127.0.0.1`; if `framescout.ui.bind != '127.0.0.1'` a startup warning is logged |
+| Container bound to `0.0.0.0` accidentally | Internet-exposed config write | The server logs its bind address at INFO on every start (`http server listening`, `host`); the default bind is `0.0.0.0` (ADR-10 as amended), so exposure is governed by the port mapping, the mandatory token and the Host/Origin allowlists; `framescout.ui.bind: 127.0.0.1` keeps the surface on loopback |
 | Token leaks via UI screenshot / clipboard | Lateral access | Tokens rotate per daemon restart; future v0.3 may add `framescout ui rotate-token` |
 | `.ui-token` left readable post-uninstall | Stale token usable | Token file is in `<dataDir>` which Docker volume convention shares with the daemon's lifecycle |
 
@@ -457,7 +457,7 @@ A v0.2-release-candidate must pass:
 
 ### Manual smoke
 
-- Start daemon with `framescout.ui.bind: 0.0.0.0` → startup logs WARN
+- Start daemon with `framescout.ui.bind: 127.0.0.1` → `http server listening` logs that host; port not reachable from another machine
 - Mount `config.yaml` read-only → PUT returns 423 with clear message
 - Stop daemon mid-apply → restart → daemon logs `.pending` exists →
   operator-action prompt in UI
@@ -472,7 +472,7 @@ For an operator running v0.1 today:
 2. **Get the token.** `docker compose exec framescout cat /var/lib/framescout/.ui-token`
 3. **Open the UI.** `http://<host>:9090/ui` → paste token → land on Live.
 4. **(Optional) Open to LAN.** Edit `config.yaml`:
-   `framescout: { ui: { bind: '0.0.0.0', allowedHosts: ['framescout.lan'] } }`.
+   `framescout: { ui: { allowedHosts: ['framescout.lan'] } }` (the bind is `0.0.0.0` by default).
    Recommended only behind a reverse proxy with TLS.
 5. **(Optional) Rotate the token.** Stop the daemon, delete
    `.ui-token`, restart. New token written. Update browser
@@ -480,7 +480,7 @@ For an operator running v0.1 today:
 
 Nothing in v0.1's `config.yaml` schema changes in v0.2. The new top-level
 `framescout.ui.*` keys default to v0.1 behaviour if absent (`bind:
-127.0.0.1`, `port: <metricsPort>`, `sessionTtlHours: 8`).
+0.0.0.0`, `sessionTtlHours: 8`; the port is `framescout.metricsPort`).
 
 ## 12. Refactor-backlog disposition
 
@@ -621,3 +621,4 @@ drops photos → next observation tagged) needs pinned backbone weights
 | 2026-05-16 | Release strategy: ship feature-complete; v0.2.x scope gains individual recognition — see [§14](#14-v02x--individual-recognition) + `docs/INDIVIDUAL-RECOGNITION.md` |
 | 2026-05-16 | v0.2.x sprints A-D shipped — `@framescout/detector-individual-embed` plugin (DINOv2-small embeddings + cosine-sim matcher), `framescout models {list,fetch,verify}` + `framescout individuals {add,list,remove,recompute}` CLIs, `/api/individuals/*` CRUD + `/ui/individuals` route with IndividualBadge on Live cards, bulletin-v1 `individualName` form field. 14 code commits + 2 docs commits, Plugin-API unchanged |
 | 2026-05-16 | Sprint M shipped — lazy-loaded Monaco YAML editor on /ui/config. YAML syntax highlighting + dark theme; falls back to textarea on load failure. Closes the last open §C polish item |
+| 2026-10-03 | ADR-10 amended after the pre-release functional check: default bind is `0.0.0.0` (what the code always did and what a container needs), `framescout.ui.bind` now exists for a loopback bind; the config schema rejects unknown keys; runtime image moved from Alpine to Debian slim so `detector-individual-embed` (onnxruntime-node, glibc) loads in it |

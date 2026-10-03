@@ -16,6 +16,9 @@ deployments:
     cameras:
       - id: front-yard              # used as cameraId in CaptureEvent
 
+# The hub address below and the MQTT broker further down are placeholders.
+# Replace them (or delete the entry) before the first start: a source or
+# sink that is unreachable at startup stops the daemon with exit code 1.
 sources:
   - id: reolink-1
     package: '@framescout/source-reolink-hub'
@@ -34,11 +37,15 @@ sources:
 
 # v0.1: detectors run in YAML declaration order. Explicit chainAfter
 # (DAG dependencies) is coming in v0.2.
+#
+# Framescout does not ship a MegaDetector or DeepFaune service — these
+# point at HTTP wrappers you run yourself. `endpoint` is the full URL the
+# frames are POSTed to, path included (docs/detectors/*.md).
 detectors:
   - id: megadetector
     package: '@framescout/detector-megadetector-http'
     config:
-      endpoint: http://localhost:8001
+      endpoint: http://localhost:8001/detect
       apiKeyEnv: MEGADETECTOR_API_KEY
       minConfidence: 0.4
       skipFramesWithPersonAbove: 0.15   # privacy gate, in detector
@@ -46,7 +53,7 @@ detectors:
   - id: deepfaune
     package: '@framescout/detector-deepfaune-http'
     config:
-      endpoint: http://localhost:8002
+      endpoint: http://localhost:8002/classify
       apiKeyEnv: DEEPFAUNE_API_KEY
       minConfidence: 0.4
 
@@ -58,7 +65,7 @@ sinks:
       queueSize: 32
     config:
       brokerUrl: mqtt://homeassistant.local
-      topicPattern: framescout/{deployment}/{camera}
+      topicPattern: framescout/{deployment}/{camera}/{observationType}
       usernameEnv: MQTT_USERNAME
       passwordEnv: MQTT_PASSWORD
 

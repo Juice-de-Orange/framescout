@@ -7,6 +7,17 @@ events landing as JSON in Home Assistant's MQTT broker.
 For the broader design, read `docs/ARCHITECTURE.md`. For every
 configuration knob, see `docs/configuration-reference.md`.
 
+> **Before the first release:** the image
+> `ghcr.io/juice-de-orange/framescout:v0.2.0` and the `@framescout/*` npm
+> packages are published with the first release. Until then, build the
+> image from source and give it the tag this page uses; the commands
+> below then run your local build, and step 1 (the pull) is skipped:
+>
+> ```bash
+> git clone https://github.com/Juice-de-Orange/framescout.git && cd framescout
+> docker build -t ghcr.io/juice-de-orange/framescout:v0.2.0 .
+> ```
+
 ## Prerequisites
 
 - A Reolink Hub Mini (or Home Hub, Home Hub Pro, RLN-series NVR — the
@@ -15,6 +26,12 @@ configuration knob, see `docs/configuration-reference.md`.
 - Docker 24+ and Docker Compose v2.
 - An MQTT broker reachable from the container — for most readers that's
   the broker built into Home Assistant.
+- For detections: a MegaDetector HTTP service. **Framescout does not
+  ship one** — you run your own small HTTP wrapper around the model that
+  speaks the contract in `docs/detectors/megadetector-http.md`. Without
+  it you can still do a first run: drop the `detectors:` block and set
+  `emitBlankObservations: true` on the source, and every clip yields one
+  `blank` observation with its best frame.
 
 If you don't run Home Assistant, see the alternative `sink-webhook`
 recipe at the bottom of this page; the daemon doesn't care which sink
@@ -73,7 +90,7 @@ detectors:
   - id: megadetector
     package: '@framescout/detector-megadetector-http'
     config:
-      endpoint: http://localhost:8001
+      endpoint: http://localhost:8001/detect   # full URL of YOUR MegaDetector wrapper
       minConfidence: 0.4
       skipFramesWithPersonAbove: 0.15
 
@@ -82,10 +99,13 @@ sinks:
     package: '@framescout/sink-mqtt'
     config:
       brokerUrl: mqtt://homeassistant.local:1883
-      topicPattern: framescout/{deployment}/{camera}
+      topicPattern: framescout/{deployment}/{camera}/{observationType}
       usernameEnv: MQTT_USERNAME
       passwordEnv: MQTT_PASSWORD
 ```
+
+`endpoint` is the exact URL each frame is POSTed to — the plugin appends
+nothing, so include the path your wrapper serves (`/detect` above).
 
 The `passwordEnv: REOLINK_PASSWORD` / `usernameEnv: MQTT_USERNAME`
 pattern tells the plugin to read the value once at daemon start —
@@ -165,6 +185,14 @@ Then:
 docker compose up -d
 ```
 
+The hub and the MQTT broker must be reachable at this point. A source
+or sink that cannot be reached at startup is fatal: the log ends with
+`InitFailed: Plugin "…" init() threw an error`, the process exits with
+code 1 and `restart: unless-stopped` starts it again — a restart loop in
+which neither `/healthz` nor the UI answers. `docker compose logs
+framescout` names the plugin; fix its address in `config.yaml` (see
+`docs/troubleshooting.md`).
+
 The daemon should reach `/healthz` within ~10 s:
 
 ```bash
@@ -172,6 +200,13 @@ curl http://localhost:9090/healthz   # → "ok"
 curl http://localhost:9090/readyz    # → "ready"
 curl http://localhost:9090/metrics | head
 ```
+
+The operator UI is at <http://localhost:9090/ui>; the login token is in
+`docker compose exec framescout cat /var/lib/framescout/.ui-token`.
+From another machine the login answers `403 forbidden_origin` until you
+list the daemon host's name or IP under `framescout.ui.allowedHosts` —
+see `docs/operator-ui.md`. With `config.yaml` mounted `:ro` as above,
+the UI's config editor validates but cannot save (also covered there).
 
 ## 5. See your first observation
 
@@ -197,8 +232,10 @@ detection, the MQTT broker should receive a message like:
 }
 ```
 
-In Home Assistant, surface that as a binary sensor via
-`examples/home-assistant-mqtt/` (coming with v0.1).
+With the topic pattern above it arrives on
+`framescout/garden/front-yard/animal`. In Home Assistant, surface that
+as a binary sensor with the snippet in `examples/home-assistant-mqtt/`,
+which subscribes to `framescout/+/+/animal`.
 
 ## Alternative: webhook instead of MQTT
 

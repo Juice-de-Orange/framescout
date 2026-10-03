@@ -37,6 +37,35 @@ loader gates against `API_VERSION` and refuses to import code from
 incompatible plugins. Pin a compatible plugin version, or upgrade
 Framescout to satisfy the plugin's range.
 
+### `InitFailed: Plugin "…" init() threw an error`
+
+Exit code 1, a few seconds after start; under `restart: unless-stopped`
+the container then restarts in a loop and neither `/healthz` nor the UI
+answers. A **source or sink** could not be reached while the daemon was
+starting — the Reolink source contacts the hub and the MQTT sink
+connects to the broker in `init()`, and a failure there is fatal. The
+message names the plugin and the cause, e.g.
+
+```
+InitFailed: Plugin "@framescout/source-reolink-hub" init() threw an error.: fetch failed: Connect Timeout Error (attempted address: 192.0.2.50:443, timeout: 10000ms)
+InitFailed: Plugin "@framescout/sink-mqtt" init() threw an error.: getaddrinfo ENOTFOUND homeassistant.local
+```
+
+The `config.yaml` shipped in the repository contains exactly these two
+placeholder hosts (`https://192.0.2.50` and
+`mqtt://homeassistant.local`); replace them with your hub and broker,
+or delete the entries you do not use, before the first start. Detector
+endpoints are not contacted at startup — a wrong detector URL shows up
+later as `detector failed; continuing …` on every event.
+
+### `Unrecognized key(s) in object: '…'`
+
+The daemon refuses to start (`framescout config validate` reports the
+same and exits with code 3). `config.yaml` contains a key the schema
+does not know — a typo, or an option from an older design note. The message carries the
+path (e.g. `framescout.ui`). Keys inside a plugin's `config:` block are
+checked by that plugin's own schema.
+
 ### Container exits immediately with code 1
 
 Check the first line written to stderr — fatal startup errors are
@@ -70,13 +99,20 @@ events. If `aiOnly: true` (the default) filters everything out, try
 `aiOnly: false` per channel — Framescout's downstream detectors then
 filter motion-only events themselves.
 
-### `ffmpeg exited with code 1: ...`
+### `decode failed; skipping event` / `ffmpeg exited with code 1: ...`
 
 The clip's download URL produced something ffmpeg can't decode — for
 the Reolink path, this usually means the token expired between Source
 emit and decode-stage fetch (rare). Check the daemon log for a
 `reolink: login successful` line right before the decode error; if
 present, the next clip should download cleanly.
+
+The event is skipped, not retried: the error is logged with its
+`eventId`, counted as
+`framescout_captures_total{outcome="decode_failed"}`, and the pipeline
+carries on with the next clip. The source's watermark moves past the
+clip like past any other, so a permanently broken recording is not
+fetched again.
 
 ## The detector chain produces no detections
 

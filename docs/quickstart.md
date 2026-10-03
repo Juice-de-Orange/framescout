@@ -260,6 +260,8 @@ that handles one handles the other.
   you can verify connectivity end-to-end before relying on real
   events.
 - `framescout test pipeline` runs one synthetic event through the
-  full detector → observation → fan-out path.
+  full detector → observation → fan-out path. Both commands exit
+  non-zero and print the cause when a detector or sink fails
+  (unreachable service, HTTP 500, refused connection).
 - `docs/configuration-reference.md` documents every YAML key.
 - `docs/troubleshooting.md` lists the failure modes you'll hit first.

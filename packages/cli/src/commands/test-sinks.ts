@@ -3,13 +3,14 @@ import {
   BoundedSinkWrapper,
   createMetricsRegistry,
   createPluginContext,
-  createRootLogger,
+  describeError,
   loadConfig,
   loadPlugin,
   type FramescoutConfig,
 } from '@framescout/core';
 import type { Sink } from '@framescout/plugin-api';
 
+import { createCaptureLogger } from '../capture-logger.js';
 import { ExitCode } from '../exit-codes.js';
 import type { CliIO } from '../io.js';
 import { synthesizeSinkPayload } from '../synth.js';
@@ -48,7 +49,6 @@ export async function cmdTestSinks(
     return ExitCode.Success;
   }
 
-  const logger = createRootLogger({ level: 'silent' });
   const { metrics, router } = createMetricsRegistry({ includeDefaults: false });
   const abort = new AbortController();
   const payload = synthesizeSinkPayload(
@@ -60,6 +60,8 @@ export async function cmdTestSinks(
     const started = Date.now();
     let ok = false;
     let error: string | undefined;
+    // Per sink: the wrapper logs a failed delivery instead of throwing.
+    const { logger, problems } = createCaptureLogger();
     try {
       const ctx = await createPluginContext({
         instanceId: entry.id,
@@ -88,12 +90,17 @@ export async function cmdTestSinks(
         });
         await wrapper.enqueue(payload);
         await wrapper.close();
-        ok = true;
+        const failed = problems.find((p) => p.msg === 'sink delivery failed');
+        if (failed !== undefined) {
+          error = `delivery failed: ${failed.cause ?? 'unknown error'}`;
+        } else {
+          ok = true;
+        }
       } finally {
         await loaded.instance.stop();
       }
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = describeError(err);
     }
     results.push({ id: entry.id, ok, ...(error && { error }), durationMs: Date.now() - started });
   }

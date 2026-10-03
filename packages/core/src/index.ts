@@ -129,6 +129,7 @@ export {
   MissingFactoryExport,
   MissingManifest,
   PluginLoadError,
+  describeError,
 } from './errors.js';
 
 // ── Phase 4a: pipeline + bounded sink ───────────────────────────────

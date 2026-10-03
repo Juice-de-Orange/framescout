@@ -129,7 +129,7 @@ export async function cmdInit(
   if (detectorPicks.includes(DETECTOR_MEGADETECTOR)) {
     megadetectorEndpoint = await prompter.input({
       message: 'MegaDetector HTTP endpoint:',
-      default: 'http://localhost:8001',
+      default: 'http://localhost:8001/detect',
       validate: (v) => /^https?:\/\//.test(v) || 'expected http(s):// URL',
     });
   }
@@ -147,7 +147,7 @@ export async function cmdInit(
     }
     deepfauneEndpoint = await prompter.input({
       message: 'DeepFaune HTTP endpoint:',
-      default: 'http://localhost:8002',
+      default: 'http://localhost:8002/classify',
       validate: (v) => /^https?:\/\//.test(v) || 'expected http(s):// URL',
     });
   }
@@ -199,7 +199,7 @@ export async function cmdInit(
     });
     sinkAnswers.mqttTopicPattern = await prompter.input({
       message: 'MQTT topic pattern:',
-      default: 'framescout/{deployment}/{camera}',
+      default: 'framescout/{deployment}/{camera}/{observationType}',
       validate: nonEmpty,
     });
   }

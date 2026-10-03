@@ -285,6 +285,7 @@ two-line PR (name → `{ url, sha256, inputSize, outputDim, normalize }`).
 
 ```
 framescout individuals add --name tulli --species cat --photos ./tulli-*.jpg
+framescout individuals add --name tulli --species cat --photos ./new-*.jpg --replace
 framescout individuals list
 framescout individuals remove tulli
 framescout individuals recompute --name tulli       # re-embed all photos
@@ -295,6 +296,12 @@ These mirror the UI surface 1:1 and are useful for headless / scripted
 bootstrap (`framescout individuals add` from a setup script). The CLI
 shares the detector's load+embed code via `packages/core` exports —
 the daemon doesn't need to be running.
+
+Names follow the same rule as in the API: lowercase kebab-case
+(`^[a-z][a-z0-9-]{0,62}$`); anything else is refused. `add` refuses a
+name that already exists; `--replace` swaps the whole individual
+(photos, centroid, manifest) for the new photos. To add single photos
+to an existing individual, use the UI or the API.
 
 ## 6. `bulletin-v1` wire-format mapping
 

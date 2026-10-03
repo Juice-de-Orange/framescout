@@ -2,17 +2,24 @@ import { readFile } from 'node:fs/promises';
 import { parse, type Tags } from 'yaml';
 import { z } from 'zod';
 
+// Every object the core owns is `.strict()`: a key that is not in the
+// schema (a typo, or an option that only ever existed in a design doc)
+// is a validation error, not a value that is dropped without a word.
+// This is also what the published JSON Schema already says
+// (`additionalProperties: false`). Plugin `config` blocks are validated
+// by the plugin's own schema.
+
 // ── Per-plugin entry shapes ─────────────────────────────────────────
 
 const overflowSchema = z.object({
   policy: z.union([z.literal('drop-oldest'), z.literal('block')]).default('drop-oldest'),
   queueSize: z.number().int().positive().default(64),
-});
+}).strict();
 
 const circuitBreakerSchema = z.object({
   failureThreshold: z.number().int().positive().default(5),
   cooldownMs: z.number().int().positive().default(30_000),
-});
+}).strict();
 
 const sourceEntrySchema = z.object({
   id: z.string().min(1),
@@ -27,13 +34,13 @@ const sourceEntrySchema = z.object({
    * <eventId>-frame<idx>`, chronologically sorted.
    */
   topNFrames: z.number().int().min(1).default(1),
-});
+}).strict();
 
 const detectorEntrySchema = z.object({
   id: z.string().min(1),
   package: z.string().min(1),
   config: z.unknown(),
-});
+}).strict();
 
 const sinkEntrySchema = z.object({
   id: z.string().min(1),
@@ -44,7 +51,7 @@ const sinkEntrySchema = z.object({
     failureThreshold: 5,
     cooldownMs: 30_000,
   }),
-});
+}).strict();
 
 const decideSchema = z.object({
   /**
@@ -54,12 +61,12 @@ const decideSchema = z.object({
    * cameras that should only report high-confidence sightings.
    */
   minConfidence: z.number().min(0).max(1).optional(),
-});
+}).strict();
 
 const cameraSchema = z.object({
   id: z.string().min(1),
   decide: decideSchema.optional(),
-});
+}).strict();
 
 export type DecideRules = z.infer<typeof decideSchema>;
 
@@ -70,9 +77,10 @@ const deploymentSchema = z.object({
       latitude: z.number(),
       longitude: z.number(),
     })
+    .strict()
     .optional(),
   cameras: z.array(cameraSchema).default([]),
-});
+}).strict();
 
 const crashBudgetSchema = z.object({
   /** Failures inside the rolling window before the source is disabled. */
@@ -81,7 +89,7 @@ const crashBudgetSchema = z.object({
   windowMs: z.number().int().positive().default(300_000),
   /** Delay before re-initialising the source after a recoverable failure. */
   reinitDelayMs: z.number().int().nonnegative().default(2_000),
-});
+}).strict();
 
 const imageOutputSchema = z.object({
   /** Target output width in pixels. Bridge-compat default 1280. */
@@ -92,7 +100,7 @@ const imageOutputSchema = z.object({
   quality: z.number().int().min(1).max(100).default(80),
   /** Extra padding around the primary-detection bbox, as a fraction of bbox size. */
   paddingFactor: z.number().nonnegative().default(0.2),
-});
+}).strict();
 
 const uiSchema = z.object({
   /** Whether the operator UI mounts at all. Default true. */
@@ -112,7 +120,16 @@ const uiSchema = z.object({
   allowedOrigins: z.array(z.string().min(1)).default([]),
   /** Session cookie TTL, hours. Default 8. */
   sessionTtlHours: z.number().int().positive().default(8),
-});
+  /**
+   * Address the HTTP surface listens on — the operator UI and API, and
+   * with them `/healthz`, `/readyz` and `/metrics` (one server, one
+   * port). Default `0.0.0.0`: inside a container that is the only
+   * address a published port can reach. Set `127.0.0.1` to keep the
+   * surface on the loopback interface, e.g. with `network_mode: host`
+   * or when running from source behind a reverse proxy.
+   */
+  bind: z.string().min(1).default('0.0.0.0'),
+}).strict();
 
 const labelQueueSchema = z.object({
   /**
@@ -125,7 +142,7 @@ const labelQueueSchema = z.object({
   maxItems: z.number().int().positive().default(2000),
   /** Sub-directory of `dataDir` for the queue. */
   dir: z.string().min(1).default('queue'),
-});
+}).strict();
 
 const framescoutSchema = z.object({
   dataDir: z.string().min(1).default('/var/lib/framescout'),
@@ -140,6 +157,7 @@ const framescoutSchema = z.object({
     allowedHosts: ['127.0.0.1', 'localhost'],
     allowedOrigins: [],
     sessionTtlHours: 8,
+    bind: '0.0.0.0',
   }),
   imageOutput: imageOutputSchema.default({
     targetWidth: 1280,
@@ -152,7 +170,7 @@ const framescoutSchema = z.object({
     maxItems: 2000,
     dir: 'queue',
   }),
-});
+}).strict();
 
 export type CrashBudgetConfig = z.infer<typeof crashBudgetSchema>;
 export type UiConfig = z.infer<typeof uiSchema>;
@@ -169,6 +187,7 @@ export const framescoutConfigSchema = z.object({
       allowedHosts: ['127.0.0.1', 'localhost'],
       allowedOrigins: [],
       sessionTtlHours: 8,
+      bind: '0.0.0.0',
     },
     imageOutput: { targetWidth: 1280, targetHeight: 720, quality: 80, paddingFactor: 0.2 },
     labelQueue: { enabled: true, maxItems: 2000, dir: 'queue' },
@@ -177,7 +196,7 @@ export const framescoutConfigSchema = z.object({
   sources: z.array(sourceEntrySchema).default([]),
   detectors: z.array(detectorEntrySchema).default([]),
   sinks: z.array(sinkEntrySchema).default([]),
-});
+}).strict();
 
 export type FramescoutConfig = z.infer<typeof framescoutConfigSchema>;
 export type SourceEntry = z.infer<typeof sourceEntrySchema>;

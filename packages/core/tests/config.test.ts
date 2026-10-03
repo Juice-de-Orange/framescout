@@ -150,3 +150,41 @@ framescout:
     ).toThrow();
   });
 });
+
+describe('parseConfigText (unknown keys, bind address)', () => {
+  it('binds 0.0.0.0 unless framescout.ui.bind says otherwise', () => {
+    expect(parseConfigText('').framescout.ui.bind).toBe('0.0.0.0');
+    const cfg = parseConfigText(`
+framescout:
+  ui:
+    bind: 127.0.0.1
+`);
+    expect(cfg.framescout.ui.bind).toBe('127.0.0.1');
+    // The other ui defaults still apply next to an explicit bind.
+    expect(cfg.framescout.ui.enabled).toBe(true);
+  });
+
+  it.each([
+    ['top level', 'detektors: []\n', 'detektors'],
+    ['framescout', 'framescout:\n  metricPort: 9090\n', 'metricPort'],
+    ['framescout.ui', 'framescout:\n  ui:\n    port: 9090\n', 'port'],
+    [
+      'sink entry',
+      "sinks:\n  - id: a\n    package: p\n    config: {}\n    overflw: {}\n",
+      'overflw',
+    ],
+  ])('rejects a key the schema does not know (%s)', (_where, yaml, key) => {
+    expect(() => parseConfigText(yaml)).toThrow(new RegExp(key));
+  });
+
+  it('leaves plugin config blocks to the plugin', () => {
+    const cfg = parseConfigText(`
+sinks:
+  - id: a
+    package: p
+    config:
+      anything: goes
+`);
+    expect(cfg.sinks[0]!.config).toEqual({ anything: 'goes' });
+  });
+});

@@ -193,6 +193,7 @@ async function main(): Promise<void> {
   if (port > 0) {
     server = await startHttpServer({
       port,
+      host: config.framescout.ui.bind,
       registry: metricsRegistry.registry,
       readyState,
       logger,

@@ -81,7 +81,11 @@ test.describe('config validate flow', () => {
     // type check and already a <div> at `fill()` (never reproducible locally,
     // where Monaco finished faster). So don't ask — wait, and fall back to the
     // textarea only when Monaco really does not arrive.
-    const monacoInput = page.locator('.monaco-editor textarea.inputarea');
+    // Monaco's input element: a hidden `textarea.inputarea` up to 0.52; from 0.53 on, Chromium
+    // gets the EditContext-based `div.native-edit-context` instead. Accept either.
+    const monacoInput = page
+      .locator('.monaco-editor textarea.inputarea, .monaco-editor .native-edit-context')
+      .first();
     const monacoReady = await monacoInput
       .waitFor({ state: 'attached', timeout: 15_000 })
       .then(() => true)

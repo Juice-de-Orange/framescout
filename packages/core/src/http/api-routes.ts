@@ -673,11 +673,16 @@ function registerIndividualsRoutes(
     '/api/individuals/:name',
     requireAuth(auth, async (_req, res, params) => {
       const name = params.name ?? '';
-      const summary = await svc.get(name);
-      if (summary === undefined) {
-        return err(res, 404, 'not_found', `individual "${name}" not found`);
+      try {
+        const summary = await svc.get(name);
+        if (summary === undefined) {
+          return err(res, 404, 'not_found', `individual "${name}" not found`);
+        }
+        writeJson(res, 200, summary);
+      } catch (e: unknown) {
+        // An invalid name is the caller's mistake (400), not a server error.
+        return reportIndividualError(res, e);
       }
-      writeJson(res, 200, summary);
     }),
   );
 
@@ -797,6 +802,15 @@ function reportIndividualError(res: ServerResponse, e: unknown): void {
   }
   if (name === 'NoPhotosError') {
     return err(res, 422, 'no_photos', msg);
+  }
+  if (name === 'InvalidIndividualNameError') {
+    return err(res, 400, 'validation', msg);
+  }
+  if (name === 'InvalidPhotoError') {
+    return err(res, 415, 'unsupported_media', msg);
+  }
+  if (name === 'PhotoEmbedError') {
+    return err(res, 422, 'bad_photo', msg);
   }
   // Validation rejects from the service surface as plain Error.
   if (msg.includes('invalid') || msg.includes('threshold must be')) {

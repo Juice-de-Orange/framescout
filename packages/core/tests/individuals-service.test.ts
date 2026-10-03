@@ -96,12 +96,49 @@ describe('IndividualsService', () => {
     const svc = makeService();
     await svc.create({ name: 'tulli', species: 'cat' });
     await svc.addPhoto('tulli', tinyJpeg);
-    await svc.addPhoto('tulli', new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]));
+    await svc.addPhoto('tulli', new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 5, 6, 7, 8]));
     const summary = await svc.recompute('tulli');
     expect(summary.photoFiles).toHaveLength(2);
     const centroidPath = join(referenceDir, 'tulli', 'centroid.f32');
     const buf = await readFile(centroidPath);
     expect(buf.byteLength).toBe(4 * 4); // outputDim 4 × float32
+  });
+
+  it('addPhoto refuses bytes that are neither JPEG nor PNG, and stores nothing', async () => {
+    const svc = makeService();
+    await svc.create({ name: 'tulli', species: 'cat' });
+    await expect(
+      svc.addPhoto('tulli', new TextEncoder().encode('<html>not an image</html>')),
+    ).rejects.toMatchObject({ name: 'InvalidPhotoError' });
+    expect((await svc.get('tulli'))?.photoFiles).toEqual([]);
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0]);
+    await expect(svc.addPhoto('tulli', png)).resolves.toHaveProperty('filename');
+  });
+
+  it('recompute names the photo that cannot be embedded', async () => {
+    const svc = createIndividualsService({
+      referenceDir,
+      embed: async (jpeg) => {
+        // Valid signature, undecodable content — what a truncated upload looks like.
+        if (jpeg[jpeg.length - 1] === 0xee) {
+          throw new Error('Input buffer contains unsupported image format');
+        }
+        return fakeEmbed(jpeg);
+      },
+      outputDim: 4,
+      normalize: 'l2',
+      backboneName: 'fake-test',
+    });
+    await svc.create({ name: 'tulli', species: 'cat' });
+    await svc.addPhoto('tulli', tinyJpeg);
+    const bad = await svc.addPhoto('tulli', new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0xee]));
+    const err = await svc.recompute('tulli').then(
+      () => undefined,
+      (e: unknown) => e as Error,
+    );
+    expect(err?.name).toBe('PhotoEmbedError');
+    expect(err?.message).toContain(bad.filename);
+    expect(err?.message).toContain('unsupported image format');
   });
 
   it('deletePhoto removes the file + updates manifest', async () => {

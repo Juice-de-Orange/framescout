@@ -213,6 +213,8 @@ export {
   IndividualNotFoundError,
   IndividualExistsError,
   InvalidIndividualNameError,
+  InvalidPhotoError,
+  PhotoEmbedError,
   NoPhotosError,
   validateIndividualName,
   type EmbedFn,

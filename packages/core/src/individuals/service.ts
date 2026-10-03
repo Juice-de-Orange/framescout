@@ -113,6 +113,30 @@ export class NoPhotosError extends Error {
   }
 }
 
+export class InvalidPhotoError extends Error {
+  constructor(detail: string) {
+    super(`not a usable photo: ${detail}`);
+    this.name = 'InvalidPhotoError';
+  }
+}
+
+/** A stored reference photo could not be embedded; names the file. */
+export class PhotoEmbedError extends Error {
+  constructor(
+    individual: string,
+    readonly filename: string,
+    cause: unknown,
+  ) {
+    super(
+      `cannot embed photo "${filename}" of individual "${individual}": ` +
+        `${cause instanceof Error ? cause.message : String(cause)} — ` +
+        `delete that photo and recompute again`,
+      { cause },
+    );
+    this.name = 'PhotoEmbedError';
+  }
+}
+
 interface InternalManifest {
   schemaVersion: 1;
   name: string;
@@ -270,6 +294,9 @@ export function createIndividualsService(
 
     async addPhoto(name, jpeg): Promise<{ filename: string }> {
       validateName(name);
+      // Refuse non-images here, where the uploader still knows which file
+      // it was. Stored as-is they only blew up in the next recompute().
+      assertImageBytes(jpeg);
       const s = await stat(dirOf(name)).catch(() => undefined);
       if (s === undefined) throw new IndividualNotFoundError(name);
       const photosDir = photosDirOf(name);
@@ -321,8 +348,13 @@ export function createIndividualsService(
         // there.
         validateFilename(filename);
         const buf = await readFile(join(photosDirOf(name), filename));
-        const emb = await embed(new Uint8Array(buf));
-        embeddings.push(emb);
+        try {
+          embeddings.push(await embed(new Uint8Array(buf)));
+        } catch (e: unknown) {
+          // The decoder's own message ("Input buffer contains unsupported
+          // image format") does not say which of N photos it choked on.
+          throw new PhotoEmbedError(name, filename, e);
+        }
       }
       const centroid = mean(embeddings);
       manifest.backbone = backboneName;
@@ -368,6 +400,22 @@ export function validateIndividualName(name: string): void {
 }
 
 const validateName = validateIndividualName;
+
+/**
+ * Signature check for the two formats the photo store accepts. It does
+ * not prove the file decodes (a truncated JPEG passes) — recompute()
+ * reports those by filename — but it stops text, HTML error pages and
+ * other formats at the door.
+ */
+function assertImageBytes(bytes: Uint8Array): void {
+  const startsWith = (sig: readonly number[]): boolean =>
+    bytes.length >= sig.length && sig.every((b, i) => bytes[i] === b);
+  const isJpeg = startsWith([0xff, 0xd8, 0xff]);
+  const isPng = startsWith([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  if (!isJpeg && !isPng) {
+    throw new InvalidPhotoError('the body is neither a JPEG nor a PNG image');
+  }
+}
 
 function validateFilename(file: string): void {
   // Defence-in-depth — refuse anything that looks like a path traversal.

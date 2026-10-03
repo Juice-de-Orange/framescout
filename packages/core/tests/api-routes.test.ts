@@ -380,6 +380,10 @@ describe('registerApiRoutes — individuals (Sprint C)', () => {
     ).createIndividualsService({
       referenceDir,
       embed: async (jpeg) => {
+        // Valid signature, undecodable content (truncated upload).
+        if (jpeg[jpeg.length - 1] === 0xee) {
+          throw new Error('Input buffer contains unsupported image format');
+        }
         const out = new Float32Array(4);
         out[0] = jpeg.length / 100;
         out[3] = 1;
@@ -598,6 +602,69 @@ describe('registerApiRoutes — individuals (Sprint C)', () => {
       body: 'hello',
     });
     expect(res.status).toBe(415);
+  });
+
+  async function createTulli(): Promise<void> {
+    await fetch(`${rig.base}/api/individuals`, {
+      method: 'POST',
+      headers: {
+        cookie: rig.cookie,
+        Origin: 'http://127.0.0.1',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ name: 'tulli', species: 'cat' }),
+    });
+  }
+
+  function upload(body: Uint8Array | string): Promise<Response> {
+    return fetch(`${rig.base}/api/individuals/tulli/photos`, {
+      method: 'POST',
+      headers: {
+        cookie: rig.cookie,
+        Origin: 'http://127.0.0.1',
+        'content-type': 'image/jpeg',
+      },
+      body,
+    });
+  }
+
+  it('POST /api/individuals/:name/photos refuses non-image bytes despite an image content-type', async () => {
+    await createTulli();
+    const res = await upload('this is a text file, not a JPEG');
+    expect(res.status).toBe(415);
+    const body = (await res.json()) as { error: { code: string; message: string } };
+    expect(JSON.stringify(body)).toContain('neither a JPEG nor a PNG');
+    const detail = await fetch(`${rig.base}/api/individuals/tulli`, {
+      headers: { cookie: rig.cookie },
+    });
+    expect(((await detail.json()) as { photoFiles: string[] }).photoFiles).toEqual([]);
+  });
+
+  it('recompute answers 422 and names the photo it cannot embed', async () => {
+    await createTulli();
+    expect((await upload(new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2]))).status).toBe(201);
+    const bad = await upload(new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0xee]));
+    expect(bad.status).toBe(201);
+    const { filename } = (await bad.json()) as { filename: string };
+    const rec = await fetch(`${rig.base}/api/individuals/tulli/recompute`, {
+      method: 'POST',
+      headers: { cookie: rig.cookie, Origin: 'http://127.0.0.1' },
+    });
+    expect(rec.status).toBe(422);
+    expect(await rec.text()).toContain(filename);
+  });
+
+  it('GET and DELETE /api/individuals/<invalid name> answer 400, not 500', async () => {
+    const get = await fetch(`${rig.base}/api/individuals/Not_Valid`, {
+      headers: { cookie: rig.cookie },
+    });
+    expect(get.status).toBe(400);
+    expect(await get.text()).toContain('invalid individual name');
+    const del = await fetch(`${rig.base}/api/individuals/Not_Valid`, {
+      method: 'DELETE',
+      headers: { cookie: rig.cookie, Origin: 'http://127.0.0.1' },
+    });
+    expect(del.status).toBe(400);
   });
 });
 

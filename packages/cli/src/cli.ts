@@ -37,7 +37,7 @@ export function buildCli(io: CliIO = defaultIO): Command {
   // Top-level subcommands keep things flat for tab completion and docs.
   program
     .command('version')
-    .description('Print versions of @framescout/core and the v0.1 plugin packages')
+    .description('Print versions of the daemon, @framescout/core and the built-in plugin packages')
     .option('--json', 'machine-readable JSON output')
     .action(async (opts: { json?: boolean }) => {
       const code = await cmdVersion(opts, io);

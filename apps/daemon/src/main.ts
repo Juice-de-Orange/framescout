@@ -30,9 +30,12 @@ import {
 } from '@framescout/core';
 import { fileURLToPath } from 'node:url';
 
+import { readDaemonVersion } from './version.js';
 import { stopAllPlugins, wirePlugins } from './wiring.js';
 
-const DAEMON_VERSION = '0.2.0';
+// One version source: this package's package.json, which release-please
+// stamps on every release (0.0.0 means "unreleased source tree").
+const DAEMON_VERSION = readDaemonVersion();
 
 /**
  * Full Framescout daemon. Loads `config.yaml`, instantiates every

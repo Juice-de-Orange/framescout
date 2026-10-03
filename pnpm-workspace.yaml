@@ -23,19 +23,19 @@ allowBuilds:
 # each entry is still needed: remove it, `pnpm install`,
 # `pnpm audit --audit-level=low`.
 overrides:
-  adm-zip: '^0.6.0'
+  adm-zip: '^0.6.1'
   ws: '^8.21.1'
   postcss: '^8.5.18'
-  svgo: '^4.0.2'
-  js-yaml: '^4.3.0'
+  svgo: '^4.1.0'
+  js-yaml: '^4.3.2'
   # brace-expansion per major line, scoped to the parent: eslint pulls the 1.x
   # line through minimatch@3, which cannot use the 5.x API (minimatch fails
   # with "TypeError: expand is not a function"). Everything else can move to
   # 5.x, so a single global jump to 5 is not possible.
-  minimatch>brace-expansion: '^1.1.16'
+  minimatch>brace-expansion: '^1.1.20'
   brace-expansion: '^5.0.8'
-  fast-uri: '^3.1.4'
-  devalue: '^5.8.1'
+  fast-uri: '^3.1.7'
+  devalue: '^5.9.3'
   esbuild: '^0.28.1'
   # vitest 4 bundles vite 8, and the docs site runs on vite 8 since the
   # Astro 7 upgrade, so a global override is safe.
@@ -44,6 +44,12 @@ overrides:
   uuid: '^11.1.1'
   # via eslint-plugin-react-hooks
   '@babel/core': '^7.29.6'
+  # Minimum patched versions for advisories published after 2026-10-01 (pnpm audit).
+  'browserslist@<4.28.7': '^4.28.7'
+  'ip-address@<10.3.1': '^10.3.1'
+  'nanoid@<3.3.18': '^3.3.18'
+  'sharp@<0.35.4': '^0.35.4'
+  'smol-toml@<1.7.1': '^1.7.1'
 
 # Deliberately accepted, NOT resolved: GHSA-mh99-v99m-4gvg (brace-expansion,
 # DoS through unbounded expansion). The fix exists only in the 5.x line; here

@@ -41,6 +41,39 @@ const REDACT_PATHS = [
   '*.*.token',
 ];
 
+const URL_QUERY_SECRET_RX =
+  /([?&;](?:token|access_token|password|passwd|pwd|secret|api_?key)=)[^&\s"'\\]+/gi;
+const URL_USERINFO_RX = /\b([a-z][a-z0-9+.-]*:\/\/[^\s/:@"'\\]*):[^\s/"'\\]+@/gi;
+
+/**
+ * Mask credentials that travel inside URLs: `token=` / `password=` style
+ * query parameters and the password of a `scheme://user:pass@host`
+ * authority. The path-based list above cannot see these — they sit in the
+ * middle of free text, typically an error message that quotes the URL it
+ * failed on (ffmpeg echoes the Reolink download URL, session token
+ * included, on every decode failure).
+ *
+ * The root logger runs every line through this, so it also covers `msg`,
+ * `err.message`, `err.stack` and nested string fields. Code that puts
+ * such text anywhere else (CLI output, API responses) calls it directly.
+ */
+export function redactUrlCredentials(text: string): string {
+  return text
+    .replace(URL_QUERY_SECRET_RX, '$1[REDACTED]')
+    .replace(URL_USERINFO_RX, '$1:[REDACTED]@');
+}
+
+/** Wrap a pino destination so each serialised line is URL-redacted first. */
+function redactingStream(stream: { write(line: string): unknown }): {
+  write(line: string): void;
+} {
+  return {
+    write: (line) => {
+      stream.write(redactUrlCredentials(line));
+    },
+  };
+}
+
 /**
  * Build the host's root pino logger. Plugins receive child loggers via
  * `PluginContext.logger` (with `instanceId` + `pluginKind` bindings).
@@ -59,10 +92,10 @@ export function createRootLogger(opts: CreateRootLoggerOptions = {}): Logger {
     },
   };
 
-  const primary = opts.destination ?? process.stdout;
+  const primary = redactingStream(opts.destination ?? process.stdout);
   const dest =
     opts.logRing !== undefined
-      ? multistream([{ stream: primary }, { stream: opts.logRing }])
+      ? multistream([{ stream: primary }, { stream: redactingStream(opts.logRing) }])
       : primary;
   const pinoInstance: PinoLogger = pino(pinoOpts, dest);
 

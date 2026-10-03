@@ -6,6 +6,8 @@
 #   docker run framescout:latest framescout version  → CLI delegate
 #   docker compose exec framescout framescout config validate
 #
+# `framescout` is a wrapper on PATH (written in the Dockerfile) so that
+# `docker compose exec`, which bypasses this entrypoint, finds it too.
 # The CLI lives at /app/node_modules/@framescout/cli/dist/main.js once
 # `pnpm deploy --filter=@framescout/daemon` has hoisted the workspace
 # tree (the daemon picks the CLI up as a runtime dep).
@@ -13,7 +15,7 @@ set -e
 
 if [ "$1" = "framescout" ]; then
   shift
-  exec node /app/node_modules/@framescout/cli/dist/main.js "$@"
+  exec framescout "$@"
 fi
 
 exec node /app/dist/main.js "$@"

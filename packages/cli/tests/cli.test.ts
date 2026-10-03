@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -52,6 +52,37 @@ describe('framescout version', () => {
     expect(code).toBe(ExitCode.Success);
     const parsed = JSON.parse(r.stdout()) as Array<{ name: string }>;
     expect(parsed.find((e) => e.name === '@framescout/plugin-api')).toBeDefined();
+  });
+
+  it('lists every built-in package and the daemon with its package.json version', async () => {
+    const r = captureIO();
+    await runCli(['version', '--json'], r.io);
+    const parsed = JSON.parse(r.stdout()) as Array<{ name: string; version: string }>;
+    const root = new URL('../../../', import.meta.url);
+    const expected: Record<string, string> = {
+      '@framescout/plugin-api': 'packages/plugin-api',
+      '@framescout/core': 'packages/core',
+      '@framescout/cli': 'packages/cli',
+      '@framescout/source-reolink-hub': 'packages/source-reolink-hub',
+      '@framescout/detector-megadetector-http': 'packages/detector-megadetector-http',
+      '@framescout/detector-deepfaune-http': 'packages/detector-deepfaune-http',
+      '@framescout/detector-classify-http': 'packages/detector-classify-http',
+      '@framescout/detector-individual-embed': 'packages/detector-individual-embed',
+      '@framescout/sink-http-multipart': 'packages/sink-http-multipart',
+      '@framescout/sink-mqtt': 'packages/sink-mqtt',
+      '@framescout/sink-webhook': 'packages/sink-webhook',
+      '@framescout/sink-file-ndjson': 'packages/sink-file-ndjson',
+      '@framescout/daemon': 'apps/daemon',
+    };
+    expect(parsed.map((e) => e.name).sort()).toEqual(Object.keys(expected).sort());
+    for (const [name, dir] of Object.entries(expected)) {
+      const pkg = JSON.parse(
+        await readFile(new URL(`${dir}/package.json`, root), 'utf-8'),
+      ) as { version: string };
+      // From a source checkout nothing may be reported as missing, and the
+      // number is the one in that package's own package.json.
+      expect(parsed.find((e) => e.name === name)?.version, name).toBe(pkg.version);
+    }
   });
 });
 

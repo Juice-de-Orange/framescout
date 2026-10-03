@@ -47,21 +47,17 @@ export interface BackboneEntry {
  *
  * `dinov2-small` weights are released by Meta under Apache-2.0; the
  * ONNX export comes from the HuggingFace `onnx-community` mirror.
- * The SHA below is filled in by the maintainer after the
- * verify-and-pin step (see `docs/INDIVIDUAL-RECOGNITION.md` §3.2).
- * Until pinned, `dinov2-small` resolves to a placeholder that
- * `fetchModel()` rejects with `BackboneNotPinnedError`.
+ * An entry whose SHA is still the placeholder is rejected by
+ * `fetchModel()` with `BackboneNotPinnedError`.
  */
 export const KNOWN_BACKBONES: Readonly<Record<string, BackboneEntry>> = {
   'dinov2-small': {
-    // HuggingFace onnx-community export of facebook/dinov2-small.
-    url: 'https://huggingface.co/onnx-community/dinov2-small/resolve/main/onnx/model.onnx',
-    // PINNED-PENDING-VERIFICATION: the maintainer runs `framescout
-    // models fetch dinov2-small --pin` once to download + compute +
-    // commit the real sha. Until then `fetchModel` refuses to fetch
-    // (fails closed; never downloads an unverified file).
-    sha256: 'PINNED-PENDING-VERIFICATION',
-    sizeBytes: 90_000_000,
+    // HuggingFace onnx-community export of facebook/dinov2-small. The
+    // URL names a commit, not `main`: a moving ref would break the
+    // checksum the day the mirror re-exports the model.
+    url: 'https://huggingface.co/onnx-community/dinov2-small/resolve/8b1f705a3a7f6f062f6bdd21986c1583d3ef105d/onnx/model.onnx',
+    sha256: 'f22797eabf810a75e41de68d378541ebea372122b25c4ce3ef25ff618250c20a',
+    sizeBytes: 88_532_934,
     inputSize: 224,
     outputDim: 384,
     normalize: 'l2',

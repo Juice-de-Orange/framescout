@@ -48,7 +48,8 @@ describe('framescout models list', () => {
       name: string;
       pinned: boolean;
     }>;
-    expect(parsed.find((e) => e.name === 'dinov2-small')?.pinned).toBe(false);
+    expect(parsed.find((e) => e.name === 'dinov2-small')?.pinned).toBe(true);
+    expect(parsed.find((e) => e.name === 'framescout-classifier-v1')?.pinned).toBe(false);
   });
 });
 
@@ -65,7 +66,7 @@ describe('framescout models fetch', () => {
     const dir = await tmp();
     const r = captureIO();
     const code = await runCli(
-      ['models', 'fetch', 'dinov2-small', '--to', dir],
+      ['models', 'fetch', 'framescout-classifier-v1', '--to', dir],
       r.io,
     );
     expect(code).toBe(ExitCode.GenericFailure);
@@ -74,17 +75,19 @@ describe('framescout models fetch', () => {
 });
 
 describe('framescout models verify', () => {
-  it('reports not-pinned for the dinov2-small entry on a fresh dataDir', async () => {
+  it('reports missing for the pinned backbone and not-pinned for the classifier on a fresh dataDir', async () => {
     const dir = await tmp();
     const r = captureIO();
     const code = await runCli(['models', 'verify', '--to', dir, '--json'], r.io);
-    expect(code).toBe(ExitCode.Success);
+    // A pinned backbone that is not on disk is a failed verification.
+    expect(code).toBe(ExitCode.GenericFailure);
     const parsed = JSON.parse(r.stdout()) as Array<{
       name: string;
       status: string;
     }>;
-    expect(parsed.find((e) => e.name === 'dinov2-small')?.status).toBe(
-      'not-pinned',
-    );
+    expect(parsed.find((e) => e.name === 'dinov2-small')?.status).toBe('missing');
+    expect(
+      parsed.find((e) => e.name === 'framescout-classifier-v1')?.status,
+    ).toBe('not-pinned');
   });
 });

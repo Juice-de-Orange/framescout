@@ -159,7 +159,7 @@ before the cutover so the first detections already carry a name — see
 [`docs/INDIVIDUAL-RECOGNITION.md`](INDIVIDUAL-RECOGNITION.md):
 
 ```bash
-framescout models fetch dinov2-small --pin   # one-time, ~85 MB; prints the SHA
+framescout models fetch dinov2-small   # one-time, ~85 MB; verified against the pinned SHA-256
 framescout individuals add --name tulli --species cat --photos ./photos/tulli/*.jpg
 framescout individuals list
 ```

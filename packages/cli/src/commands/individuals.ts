@@ -48,21 +48,22 @@ export async function cmdIndividualsAdd(
   if (cfg === undefined) return ExitCode.ConfigValidation;
   const { backbone, referenceDir } = cfg;
 
+  // Validate every photo exists + is readable BEFORE the backbone is
+  // loaded (a first run downloads ~85 MB) and before we touch the
+  // reference directory — refuses partial state if one input is broken.
+  for (const p of opts.photos) {
+    const s = await stat(p).catch(() => undefined);
+    if (s === undefined || !s.isFile()) {
+      io.err(`individuals add: ${p} is not a readable file\n`);
+      return ExitCode.Misuse;
+    }
+  }
+
   const { embedFromJpeg, meanEmbeddings, writeCentroid } = await loadEmbed();
   io.out(`Loading backbone (${backbone.kind})…\n`);
   const session = await openSession(backbone, cfg.dataDir);
 
   try {
-    // Validate every photo exists + is readable BEFORE we touch the
-    // reference directory — refuses partial state if one input is
-    // broken.
-    for (const p of opts.photos) {
-      const s = await stat(p).catch(() => undefined);
-      if (s === undefined || !s.isFile()) {
-        io.err(`individuals add: ${p} is not a readable file\n`);
-        return ExitCode.Misuse;
-      }
-    }
 
     // Compute embedding per photo. Use the full image as bbox (the
     // operator's reference photos are curated portraits, not raw

@@ -13,11 +13,9 @@ test.beforeAll(() => {
  * real DINOv2 backbone.
  *
  * The full upload-to-detect roundtrip (operator drops photos → next
- * observation tagged with the individual within 5 s) is gated on the
- * maintainer's pre-cutover weight-pin step
- * (`framescout models fetch dinov2-small --pin`). It lands as a
- * follow-up Playwright spec once weights are pinned + reference
- * photos for a fixture cat are committed.
+ * observation tagged with the individual within 5 s) lands as a
+ * follow-up Playwright spec once reference photos for a fixture cat
+ * are committed (it also needs the ~85 MB backbone download).
  *
  * The fixture config in tests/e2e/fixtures/config.yaml does NOT
  * declare an @framescout/detector-individual-embed detector, so the

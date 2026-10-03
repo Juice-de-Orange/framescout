@@ -603,8 +603,8 @@ override).
 **Status:** **Shipped on `main` 2026-05-16.** Sprints A-D each gated on
 the prior sprint's verification; Sprint M (Monaco editor) shipped same
 day. The full upload-to-detect roundtrip Playwright spec (operator
-drops photos → next observation tagged) needs pinned backbone weights
-(`framescout models fetch dinov2-small --pin`); the smoke spec for
+drops photos → next observation tagged) is still to be written (the
+backbone weights are pinned; it needs reference photos); the smoke spec for
 /ui/individuals nav + form validation is green.
 
 ## Appendix: change log of scope-binding decisions

@@ -115,10 +115,8 @@ describe('framescout individuals add', () => {
     const dir = await tmpDir();
     const cfg = await writeConfig(dir, true);
     const r = captureIO();
-    // Refuse before backbone load — passes a non-existent file
-    // so the validation step in cmdIndividualsAdd surfaces first.
-    // (Backbone load would otherwise fail with BackboneNotPinnedError;
-    // either way we expect a non-zero exit.)
+    // Refused before the backbone load: a non-existent file must not
+    // trigger the model download.
     const code = await runCli(
       [
         'individuals',
@@ -132,7 +130,9 @@ describe('framescout individuals add', () => {
       ],
       r.io,
     );
-    expect(code).not.toBe(ExitCode.Success);
+    expect(code).toBe(ExitCode.Misuse);
+    expect(r.stderr()).toContain('is not a readable file');
+    expect(r.stdout()).not.toContain('Loading backbone');
   });
 });
 

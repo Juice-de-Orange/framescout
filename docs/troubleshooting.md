@@ -87,7 +87,7 @@ Token expired between the lease window's start and the search call.
 The client re-logs in automatically and retries — these are normal in
 the logs.
 
-### `reolink error code -7 for cmd=Login`
+### `reolink login failed: code -7`
 
 Wrong username or password. Confirm with the Hub's web UI;
 double-check `passwordEnv` and any `!env` substitution.

@@ -17,6 +17,8 @@ import {
   PluginRegistry,
   StateProvider,
   decodeStub,
+  describeError,
+  redactUrlCredentials,
   scoreStub,
   preserveEnvTagsRoundTrip,
   registerApiRoutes,
@@ -253,6 +255,11 @@ async function main(): Promise<void> {
             fsRoot: uiRoot,
             routePrefix: '/ui',
             spaFallback: 'index.html',
+          });
+          // Nothing lives at `/`; send a browser to the UI instead of a 404.
+          router.get('/', (_req, res) => {
+            res.writeHead(302, { Location: '/ui/' });
+            res.end();
           });
         } else {
           logger.warn(
@@ -575,7 +582,11 @@ main().catch((err: unknown) => {
 
 function stringifyError(err: unknown): string {
   if (err instanceof Error) {
-    return `${err.name}: ${err.message}${err.stack ? `\n${err.stack}` : ''}`;
+    // describeError() appends the cause chain: wrapper errors such as
+    // InitFailed only say "init() threw an error", the reason is the cause.
+    return redactUrlCredentials(
+      `${err.name}: ${describeError(err)}${err.stack ? `\n${err.stack}` : ''}`,
+    );
   }
   try {
     return JSON.stringify(err);

@@ -28,11 +28,8 @@ overrides:
   postcss: '^8.5.18'
   svgo: '^4.1.0'
   js-yaml: '^4.3.2'
-  # brace-expansion per major line, scoped to the parent: eslint pulls the 1.x
-  # line through minimatch@3, which cannot use the 5.x API (minimatch fails
-  # with "TypeError: expand is not a function"). Everything else can move to
-  # 5.x, so a single global jump to 5 is not possible.
-  minimatch>brace-expansion: '^1.1.20'
+  # eslint 10 left minimatch@3 behind; every minimatch in the tree is now 10.x,
+  # which needs the 5.x API, so one global target fits all.
   brace-expansion: '^5.0.8'
   fast-uri: '^3.1.7'
   devalue: '^5.9.3'
@@ -54,15 +51,3 @@ overrides:
   # vendored copy (vs/base/browser/dompurify), so this only moves the declared
   # dependency; the advisories need IN_PLACE, which monaco never sets.
   'dompurify@<3.4.16': '^3.4.16'
-
-# Deliberately accepted, NOT resolved: GHSA-mh99-v99m-4gvg (brace-expansion,
-# DoS through unbounded expansion). The fix exists only in the 5.x line; here
-# the package is reached exclusively through `minimatch@3`, which does not
-# understand the 5.x API. minimatch@3 comes from eslint and
-# @microsoft/api-extractor — developer tooling that only ever sees our own file
-# paths, never untrusted input, and is never shipped. The 1.x line is patched
-# as far as it goes with ^1.1.16 (which closes the two other brace-expansion
-# advisories). Remove once eslint moves to minimatch >= 10.
-auditConfig:
-  ignoreGhsas:
-    - GHSA-mh99-v99m-4gvg

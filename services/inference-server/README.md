@@ -23,25 +23,126 @@ docker build -t framescout-inference . && \
     framescout-inference
 ```
 
+## Container image
+
+Each release of the inference server publishes a signed image for
+`linux/amd64` and `linux/arm64`, so the inference host can pull it instead
+of building:
+
+```bash
+docker pull ghcr.io/juice-de-orange/framescout-inference:v0.2.0
+```
+
+| Tag | Meaning |
+|---|---|
+| `vX.Y.Z` | one release; use this in compose files |
+| `X.Y` | latest patch of that minor version (moves) |
+| `X` | latest release of that major version (moves) |
+
+The inference server is released on its own (git tag
+`framescout-inference-server-vX.Y.Z`, changes in this directory's
+`CHANGELOG.md`), so its version is independent of the daemon's
+`ghcr.io/juice-de-orange/framescout` image. Images are signed keylessly with
+cosign and carry SBOM and provenance attestations. To check one:
+
+```bash
+cosign verify ghcr.io/juice-de-orange/framescout-inference:v0.2.0 \
+  --certificate-identity https://github.com/Juice-de-Orange/framescout/.github/workflows/release.yml@refs/heads/main \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+> **Before the first release** of the inference server no image is
+> published yet; build it as shown above, or under the published name so a
+> compose file that names it works unchanged:
+> `docker build -t ghcr.io/juice-de-orange/framescout-inference:v0.2.0 .`
+
+In a compose file use `image:` with the release tag instead of `build:`;
+[docs/operations.md](../../docs/operations.md#inference-server) shows the
+update steps.
+
 ## HTTP contract
 
 ```
 POST /         multipart: image=<jpeg>, bbox="[x,y,w,h]" (normalised), embed="1"?
                → { "predictions": [{"class","confidence"}...], "embedding": [...]? }
+POST /classify multipart: image=<jpeg> (the crop) → {class, classDe, confidence, topK,
+               individual?, individualConfidence?}  (legacy species-service contract)
 GET  /healthz  → {"ok": true}
 GET  /readyz   → 200 when the model is loaded, else 503
+GET  /admin/model   → {sha256, numClasses, embeddingDim, labels, individuals?}  (ADMIN_KEY)
+POST /admin/model   multipart: model=<onnx>, labels=<json>, centroids=<json>?  (ADMIN_KEY)
+               → hot-swaps the served model, returns the same shape as GET
 ```
 
 `predictions` is byte-compatible with the DeepFaune response shape;
 `embedding` (L2-normalised) is additive and only returned when `embed=1`.
 
-| Env           | Meaning                                            |
-|---------------|----------------------------------------------------|
-| `MODEL_PATH`  | exported `model.onnx` (required)                   |
-| `LABELS_PATH` | `labels.json`, index → species name (required)     |
-| `MODEL_SHA256`| optional pin; refuses to start on mismatch         |
-| `INPUT_SIZE`  | crop size fed to the model (default 224)           |
-| `API_KEY`     | optional bearer token required on `POST /`         |
+| Env                       | Meaning                                                    |
+|---------------------------|------------------------------------------------------------|
+| `MODEL_PATH`              | exported `model.onnx` (required)                           |
+| `LABELS_PATH`             | `labels.json`, index → species name (required)             |
+| `CENTROIDS_PATH`          | optional `centroids.json` for individual tagging on `/classify` |
+| `MODEL_SHA256`            | optional pin; on a mismatch the server starts unloaded (not checked on hot-swap: update it after a deploy) |
+| `INPUT_SIZE`              | crop size fed to the model (default 224)                   |
+| `API_KEY`                 | optional bearer token required on `POST /` and `/classify` |
+| `ADMIN_KEY`               | bearer token for `/admin/model`; unset → admin disabled (503) |
+| `TOP_K`                   | entries in `/classify`'s `topK` (default 3)                |
+| `LOGIT_SCALE`             | confidence calibration factor (default 3.5)                |
+| `INDIVIDUAL_THRESHOLD`    | minimum similarity for an individual tag (default 0.6)     |
+| `INDIVIDUAL_MARGIN`       | lead the best individual needs over the runner-up (default 0.05) |
+| `MAX_UPLOAD_BYTES`        | largest image upload (default 10 MiB)                      |
+| `MAX_MODEL_BYTES`         | largest file in a `POST /admin/model` request (default 256 MiB) |
+| `MAX_INTERMEDIATE_PIXELS` | largest resize intermediate (default 16 000 000)           |
+
+Requests whose `Content-Length` is over `MAX_UPLOAD_BYTES` plus 64 KiB are
+refused with 413 before the body is read. On `/admin/model` `MAX_MODEL_BYTES`
+applies to each file — model, labels and centroids — so that request may be
+up to three times `MAX_MODEL_BYTES` plus 64 KiB. That allowance is for the
+admin only: without a valid `ADMIN_KEY` bearer the route answers 401 (503
+while admin is disabled) before any of the body is read.
+`MAX_MODEL_BYTES` fits the trainer's default backbone (`convnextv2_tiny`
+exports to about 110 MB) with headroom; raise it for base-sized backbones
+(about 350 MB). An image whose aspect ratio would need a resize intermediate
+above `MAX_INTERMEDIATE_PIXELS` (a 4000×1 strip, or a 1 px high bbox) is a
+400 — a 4K frame needs 0.09 Mpx.
+
+### `/healthz` and `/readyz`, and the container healthcheck
+
+`GET /healthz` answers 200 whenever the process runs (liveness). `GET /readyz`
+answers 200 only with a model loaded, otherwise 503 with the reason
+(readiness). The image's `HEALTHCHECK` probes `/readyz`, so `docker ps`
+shows a server without a usable model — no model deployed yet, a corrupt
+file, a `MODEL_SHA256` mismatch — as **unhealthy** until a working model is
+deployed. Docker itself does not restart unhealthy containers; it is a
+signal for you or your monitoring. If something waits on this container with
+`depends_on: condition: service_healthy`, it waits for the first model; probe
+`/healthz` in your own `healthcheck:` if you want liveness only.
+
+### Start-up warnings
+
+At start the server logs a warning when `API_KEY` is unset (`POST /` and
+`POST /classify` then accept requests without a key) and when `ADMIN_KEY`
+is unset (model deploys are disabled). Neither stops the server.
+
+### Start without a usable model
+
+A missing, corrupt or wrongly pinned model does not stop the server: it
+starts unloaded, `GET /readyz` answers 503 with the reason
+(`{"ready": false, "reason": "model could not be loaded: …"}`, also logged),
+and `POST /admin/model` stays available to deploy a working model.
+
+### Model hot-swap
+
+`POST /admin/model` (what the studio's **Deploy** calls) stages the upload
+next to `MODEL_PATH`, loads it, runs one probe image through it at
+`INPUT_SIZE` and requires one output per label, and checks that uploaded
+centroids contain at least one usable embedding. Only then are the files
+renamed into place and the served model swapped. If any step fails the
+answer is 400 (413 for an oversized part) with the reason, and the old
+model, labels and centroids keep serving. The directory holding
+`MODEL_PATH` must be writable by the container user (uid 1001).
+
+Backup, restore and updating: [docs/operations.md](../../docs/operations.md#inference-server-model-volume).
 
 The preprocessing in `framescout_inference/preprocess.py` is a
 **load-bearing contract** kept identical to the trainer's — train-time

@@ -31,6 +31,7 @@ export default defineConfig({
             { label: 'Operator UI', link: '/operator-ui/' },
             { label: 'Configuration reference', link: '/configuration-reference/' },
             { label: 'Troubleshooting', link: '/troubleshooting/' },
+            { label: 'Backup, restore, updating', link: '/operations/' },
           ],
         },
         {

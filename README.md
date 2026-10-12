@@ -134,6 +134,7 @@ User path:
 - [Operator UI](docs/operator-ui.md) — live feed, config edit, restart
 - [Configuration reference](docs/configuration-reference.md) — every YAML key, env var, CLI flag
 - [Troubleshooting](docs/troubleshooting.md) — symptom → cause → fix
+- [Operations](docs/operations.md) — backup, restore and updating (daemon, model volume, studio)
 - [Migrating from a legacy ingest pipeline](docs/migrating-from-a-legacy-ingest.md)
 
 Plugin reference:
@@ -179,6 +180,15 @@ firmware the Reolink source was written against are listed under
 [Tested firmwares](docs/sources/reolink-hub.md#tested-firmwares); they were not re-tested in these
 checks. If you run one of the unverified pieces, a report in the issues — working or not — is
 welcome.
+
+### Known limitations
+
+- The Reolink source relies on the hub's search window to skip clips it has already processed;
+  it keeps a watermark but does not deduplicate clips the hub returns again.
+- The inference server's `MODEL_SHA256` pin is checked when the server starts only; a model deployed through
+  `POST /admin/model` does not update it (see [operations](docs/operations.md#inference-server-model-volume)).
+- `examples/split-host` mounts the model directory read-only and sets no `ADMIN_KEY`, so the
+  studio cannot deploy to it as shipped.
 
 ## Contributing
 

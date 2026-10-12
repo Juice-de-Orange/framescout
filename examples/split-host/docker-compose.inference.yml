@@ -7,14 +7,17 @@
 # them behind a firewall / tailnet; the API keys are the only auth.
 services:
   inference-server:
-    build: ../../services/inference-server
-    image: framescout-inference:latest
+    # Published from the first inference server release on (git tag
+    # framescout-inference-server-v0.2.0); until then build it under this
+    # name, see README.md. Pin vX.Y.Z so an update is your decision.
+    image: ghcr.io/juice-de-orange/framescout-inference:v0.2.0
     container_name: framescout-inference
     restart: unless-stopped
     environment:
       MODEL_PATH: /models/model.onnx
       LABELS_PATH: /models/labels.json
-      # Pin the trained model's SHA so a corrupt/again-wrong file fails fast.
+      # Pin the trained model's SHA: a corrupt/again-wrong file leaves the server
+      # unloaded (/readyz 503 names the mismatch) instead of serving it.
       MODEL_SHA256: ${CLASSIFY_MODEL_SHA256:-}
       API_KEY: ${CLASSIFY_API_KEY:?set CLASSIFY_API_KEY}
       INPUT_SIZE: "224"

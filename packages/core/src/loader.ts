@@ -12,6 +12,7 @@ import {
   type PluginManifest,
 } from '@framescout/plugin-api';
 
+import { findUnknownKeys, withKeyHints } from './config-hints.js';
 import {
   ConfigValidationError,
   IncompatibleApiVersion,
@@ -113,8 +114,19 @@ export async function preparePlugin<T extends PluginLifecycle = PluginLifecycle>
   try {
     cfg = (factory.configSchema as ZodType<unknown>).parse(opts.config);
   } catch (err) {
+    if (err instanceof ZodError) withKeyHints(err, factory.configSchema);
     const issues = err instanceof ZodError ? err.issues : undefined;
     throw new ConfigValidationError(pkg, issues, err);
+  }
+  // Plugin schemas are usually not strict: Zod drops a key it does not
+  // know without a word, so a typo (or an option renamed in a newer
+  // version) would silently do nothing. Say so, with the closest name.
+  for (const { path, didYouMean } of findUnknownKeys(factory.configSchema, opts.config)) {
+    opts.ctx.logger.warn(
+      { configKey: path, ...(didYouMean ? { didYouMean } : {}) },
+      `config key '${path}' is not known to plugin ${manifest.id} and is ignored` +
+        (didYouMean ? ` (did you mean '${didYouMean}'?)` : ''),
+    );
   }
 
   const instance = factory.create(cfg, opts.ctx);

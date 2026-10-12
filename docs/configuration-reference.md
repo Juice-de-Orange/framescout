@@ -24,10 +24,14 @@ IDE-consumable JSON Schema, then drop
 `config.yaml` for inline editor validation.
 
 Keys the schema does not know are rejected (`Unrecognized key(s) in
-object`; `framescout config validate` exits with code 3, the daemon
-does not start) at every level the core owns — top level,
-`framescout.*`, deployments, cameras and the plugin entries. The
-content of a plugin's `config:` block is validated by that plugin.
+object`, followed by the closest known key when one is near, e.g.
+`'bnd' (did you mean 'bind'?)`; `framescout config validate` exits with
+code 3, the daemon does not start) at every level the core owns — top
+level, `framescout.*`, deployments, cameras and the plugin entries. The
+content of a plugin's `config:` block is validated by that plugin; a key
+the plugin's schema does not know is ignored and logged as a warning when
+the plugin loads (`config key 'passwordENV' is not known to plugin
+reolink-hub and is ignored (did you mean 'passwordEnv'?)`).
 
 ### `framescout`
 

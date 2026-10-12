@@ -12,5 +12,6 @@
   "apps/daemon": "0.0.0",
   "packages/detector-classify-http": "0.0.0",
   "packages/detector-individual-embed": "0.0.0",
-  "packages/individual-recognition": "0.0.0"
+  "packages/individual-recognition": "0.0.0",
+  "services/inference-server": "0.1.0"
 }

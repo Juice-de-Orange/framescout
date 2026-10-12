@@ -93,3 +93,49 @@ def test_malformed_upload_keeps_old_model(client):
     assert r.status_code == 400
     after = c.get("/admin/model", headers={"Authorization": "Bearer sek-rit"}).json()
     assert after["sha256"] == before["sha256"]  # unchanged
+
+
+def _admin_files(model_bytes: bytes, labels: list[str]) -> dict[str, tuple[str, bytes, str]]:
+    return {
+        "model": ("model.onnx", model_bytes, "application/octet-stream"),
+        "labels": ("labels.json", json.dumps(labels).encode(), "application/json"),
+    }
+
+
+def test_model_upload_larger_than_the_image_cap_is_accepted(client):
+    """A convnextv2_tiny export is ~110 MB. Capping /admin/model at the
+    10 MB *image* limit turned every real deploy into a 413."""
+    import framescout_inference.app as appmod
+
+    c, tmp_path = client
+    big = tmp_path / "big.onnx"
+    make_tiny_onnx(big, seed=7, pad_bytes=12 * 1024 * 1024)
+    assert big.stat().st_size > appmod.MAX_UPLOAD_BYTES
+
+    r = c.post(
+        "/admin/model",
+        files=_admin_files(big.read_bytes(), ["a", "b", "c"]),
+        headers={"Authorization": "Bearer sek-rit"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["labels"] == ["a", "b", "c"]
+
+
+def test_model_upload_over_the_model_cap_is_413_and_keeps_old(client, monkeypatch):
+    import framescout_inference.app as appmod
+
+    c, tmp_path = client
+    before = c.get("/admin/model", headers={"Authorization": "Bearer sek-rit"}).json()
+    monkeypatch.setattr(appmod, "MAX_MODEL_BYTES", 1024)
+    big = tmp_path / "big.onnx"
+    make_tiny_onnx(big, seed=7, pad_bytes=4096)
+
+    r = c.post(
+        "/admin/model",
+        files=_admin_files(big.read_bytes(), ["a", "b", "c"]),
+        headers={"Authorization": "Bearer sek-rit"},
+    )
+    assert r.status_code == 413
+    assert "MAX_MODEL_BYTES" in r.json()["detail"]
+    after = c.get("/admin/model", headers={"Authorization": "Bearer sek-rit"}).json()
+    assert after["sha256"] == before["sha256"]

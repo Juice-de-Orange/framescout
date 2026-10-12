@@ -2,6 +2,8 @@ import { readFile } from 'node:fs/promises';
 import { parse, type Tags } from 'yaml';
 import { z } from 'zod';
 
+import { withKeyHints } from './config-hints.js';
+
 // Every object the core owns is `.strict()`: a key that is not in the
 // schema (a typo, or an option that only ever existed in a design doc)
 // is a validation error, not a value that is dropped without a word.
@@ -227,7 +229,9 @@ const envTag: Tags[number] = {
 
 export function parseConfigText(text: string): FramescoutConfig {
   const data = parse(text, { customTags: [envTag] }) as unknown;
-  return framescoutConfigSchema.parse(data ?? {});
+  const parsed = framescoutConfigSchema.safeParse(data ?? {});
+  if (!parsed.success) throw withKeyHints(parsed.error, framescoutConfigSchema);
+  return parsed.data;
 }
 
 export async function loadConfig(path: string): Promise<FramescoutConfig> {

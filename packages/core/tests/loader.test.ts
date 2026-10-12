@@ -1,6 +1,8 @@
 import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { loadPlugin } from '../src/loader.js';
@@ -271,6 +273,92 @@ export default {
     }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(InitTimeout);
     expect((err as InitTimeout).timeoutMs).toBe(50);
+  });
+});
+
+describe('loadPlugin (unknown config keys)', () => {
+  // A real zod schema, imported by the fixture from core's own copy.
+  const zodUrl = pathToFileURL(createRequire(import.meta.url).resolve('zod')).href;
+  const STRIPPING_FACTORY = `
+import { z } from '${zodUrl}';
+const configSchema = z.object({
+  host: z.string(),
+  passwordEnv: z.string().optional(),
+  overflow: z.object({ queueSize: z.number().default(8) }).default({}),
+  topics: z.array(z.object({ name: z.string() })).default([]),
+});
+const lifecycle = {
+  init: () => Promise.resolve(),
+  start: () => Promise.resolve(),
+  stop: () => Promise.resolve(),
+};
+export default {
+  manifest: { apiVersion: '^0.1.0', kind: 'source', id: 'test-source', displayName: 'Test Source' },
+  configSchema,
+  create: () => lifecycle,
+};
+`;
+
+  it('warns about each key the plugin schema drops, with the closest known key', async () => {
+    const dir = await createFixture({
+      framescout: {
+        apiVersion: '^0.1.0',
+        kind: 'source',
+        id: 'test-source',
+        displayName: 'Test Source',
+      },
+      factoryCode: STRIPPING_FACTORY,
+    });
+    const warnings: Array<{ obj: unknown; msg: unknown }> = [];
+    const spy = {
+      ...ctx.logger,
+      warn: (obj: unknown, msg?: unknown) => {
+        warnings.push({ obj, msg });
+      },
+    } as unknown as PluginContext['logger'];
+    await loadPlugin({
+      package: dir,
+      config: {
+        host: 'h',
+        passwordENV: 'X', // case typo
+        password: 'old-style', // the old `password: !env X` form
+        overflow: { queuesize: 4 },
+        topics: [{ name: 'a', nam: 'b' }],
+      },
+      ctx: { ...ctx, logger: spy },
+    });
+    expect(warnings.map((w) => w.obj)).toEqual([
+      { configKey: 'passwordENV', didYouMean: 'passwordEnv' },
+      { configKey: 'password', didYouMean: 'passwordEnv' },
+      { configKey: 'overflow.queuesize', didYouMean: 'queueSize' },
+      { configKey: 'topics.0.nam', didYouMean: 'name' },
+    ]);
+    expect(String(warnings[0]!.msg)).toContain('ignored');
+  });
+
+  it('stays quiet for a config the schema fully knows', async () => {
+    const dir = await createFixture({
+      framescout: {
+        apiVersion: '^0.1.0',
+        kind: 'source',
+        id: 'test-source',
+        displayName: 'Test Source',
+      },
+      factoryCode: STRIPPING_FACTORY,
+    });
+    const warnings: unknown[] = [];
+    const spy = {
+      ...ctx.logger,
+      warn: (obj: unknown) => {
+        warnings.push(obj);
+      },
+    } as unknown as PluginContext['logger'];
+    await loadPlugin({
+      package: dir,
+      config: { host: 'h', overflow: { queueSize: 4 }, topics: [{ name: 'a' }] },
+      ctx: { ...ctx, logger: spy },
+    });
+    expect(warnings).toEqual([]);
   });
 });
 

@@ -67,6 +67,17 @@ sinks: []
 `;
 
 describe('validateText', () => {
+  it('names the closest known key for an unknown one', () => {
+    const r = validateText('framescout:\n  ui:\n    bnd: 127.0.0.1\n');
+    expect(r.ok).toBe(false);
+    expect(r.ok ? [] : r.issues).toEqual([
+      {
+        path: 'framescout.ui',
+        message: "Unrecognized key(s) in object: 'bnd' (did you mean 'bind'?)",
+      },
+    ]);
+  });
+
   it('returns ok for a valid config', () => {
     const r = validateText(validYaml);
     expect(r.ok).toBe(true);

@@ -13,6 +13,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { isScalar, parseDocument, type Document, type Scalar } from 'yaml';
 
 import { framescoutConfigSchema, type FramescoutConfig } from './config.js';
+import { withKeyHints } from './config-hints.js';
 
 export interface ConfigPaths {
   /** Absolute path to the currently-active `config.yaml`. */
@@ -99,6 +100,7 @@ export function validateText(text: string): ValidateResult {
   if (parsed.success) {
     return { ok: true, parsed: parsed.data };
   }
+  withKeyHints(parsed.error, framescoutConfigSchema);
   return {
     ok: false,
     issues: parsed.error.issues.map((i) => ({

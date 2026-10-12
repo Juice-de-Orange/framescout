@@ -22,6 +22,8 @@ First public release, planned as `v0.2.0` (plugin API `0.1.0`):
 
 ### Fixed
 
+- Container image: builds again on the Node 26 base image, which no longer ships Corepack
+  (`corepack: not found`). pnpm is installed from npm at the version pinned in `packageManager`.
 - Inference server: `POST /admin/model` accepts real models — the model upload has its own
   limit, `MAX_MODEL_BYTES` (default 256 MiB), instead of the 10 MiB image limit, and is streamed
   to disk.

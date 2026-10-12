@@ -23,6 +23,43 @@ docker build -t framescout-inference . && \
     framescout-inference
 ```
 
+## Container image
+
+Each release of the inference server publishes a signed image for
+`linux/amd64` and `linux/arm64`, so the inference host can pull it instead
+of building:
+
+```bash
+docker pull ghcr.io/juice-de-orange/framescout-inference:v0.2.0
+```
+
+| Tag | Meaning |
+|---|---|
+| `vX.Y.Z` | one release; use this in compose files |
+| `X.Y` | latest patch of that minor version (moves) |
+| `X` | latest release of that major version (moves) |
+
+The inference server is released on its own (git tag
+`framescout-inference-server-vX.Y.Z`, changes in this directory's
+`CHANGELOG.md`), so its version is independent of the daemon's
+`ghcr.io/juice-de-orange/framescout` image. Images are signed keylessly with
+cosign and carry SBOM and provenance attestations. To check one:
+
+```bash
+cosign verify ghcr.io/juice-de-orange/framescout-inference:v0.2.0 \
+  --certificate-identity https://github.com/Juice-de-Orange/framescout/.github/workflows/release.yml@refs/heads/main \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+> **Before the first release** of the inference server no image is
+> published yet; build it as shown above, or under the published name so a
+> compose file that names it works unchanged:
+> `docker build -t ghcr.io/juice-de-orange/framescout-inference:v0.2.0 .`
+
+In a compose file use `image:` with the release tag instead of `build:`;
+[docs/operations.md](../../docs/operations.md#inference-server) shows the
+update steps.
+
 ## HTTP contract
 
 ```

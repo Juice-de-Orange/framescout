@@ -214,8 +214,9 @@ curl -s http://localhost:8002/readyz
 curl -s -H "Authorization: Bearer $ADMIN_KEY" http://localhost:8002/admin/model
 ```
 
-From a source checkout (the compose file builds the image, as
-[`examples/split-host`](../examples/split-host) does):
+[`examples/split-host`](../examples/split-host) uses the published image.
+From a source checkout, with `build: services/inference-server` (path
+relative to your compose file) in place of `image:`:
 
 ```bash
 git pull                     # or: git fetch --tags && git checkout framescout-inference-server-v0.2.1

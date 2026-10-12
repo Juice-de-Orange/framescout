@@ -19,6 +19,9 @@ the ingest endpoint in the byte-compatible `bulletin-v1` shape.
 > **Before the first release** the image `ghcr.io/juice-de-orange/framescout:v0.2.0` is not
 > published yet. Build it from the repository root under that tag and the compose file works
 > unchanged: `docker build -t ghcr.io/juice-de-orange/framescout:v0.2.0 .`
+> The same holds for the inference server image until its first release (git tag
+> `framescout-inference-server-v0.2.0`):
+> `docker build -t ghcr.io/juice-de-orange/framescout-inference:v0.2.0 services/inference-server`
 
 The MegaDetector service is **not included**: `docker-compose.inference.yml` only carries a
 commented placeholder for it. Framescout ships the classifier side (`services/inference-server`);

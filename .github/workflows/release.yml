@@ -79,9 +79,14 @@ jobs:
     needs: release-please
     if: ${{ needs.release-please.outputs.daemon_release_created == 'true' }}
     runs-on: ubuntu-latest
+    # Job-level permissions replace the workflow-wide set: read the
+    # checkout, push to ghcr.io, and an OIDC token for keyless cosign.
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     env:
       REGISTRY: ghcr.io
-      IMAGE_NAME: ${{ github.repository_owner }}/framescout
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -101,17 +106,22 @@ jobs:
 
       - name: Resolve image tags
         id: tags
+        env:
+          TAG_NAME: ${{ needs.release-please.outputs.daemon_tag_name }}
         run: |
-          tag='${{ needs.release-please.outputs.daemon_tag_name }}'
-          version="${tag##*v}"
+          # The tag is framescout-daemon-vX.Y.Z. Image references must be
+          # lowercase; the owner is not.
+          version="${TAG_NAME##*v}"
           major="${version%%.*}"
           minor="${version#*.}"; minor="${minor%.*}"
+          image="$REGISTRY/${GITHUB_REPOSITORY_OWNER,,}/framescout"
           {
             echo "version=$version"
+            echo "image=$image"
             echo "tags<<EOF"
-            echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v$version"
-            echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$major.$minor"
-            echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$major"
+            echo "$image:v$version"
+            echo "$image:$major.$minor"
+            echo "$image:$major"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
@@ -139,10 +149,10 @@ jobs:
           ${{ steps.tags.outputs.tags }}
           EOF
 
-      - name: Generate SBOM (SPDX + CycloneDX)
+      - name: Generate SBOM (SPDX)
         uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
-          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v${{ steps.tags.outputs.version }}
+          image: ${{ steps.tags.outputs.image }}:v${{ steps.tags.outputs.version }}
           format: spdx-json
           upload-release-assets: false
           upload-artifact: true
@@ -151,7 +161,7 @@ jobs:
       - name: Generate SBOM (CycloneDX)
         uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
-          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v${{ steps.tags.outputs.version }}
+          image: ${{ steps.tags.outputs.image }}:v${{ steps.tags.outputs.version }}
           format: cyclonedx-json
           upload-release-assets: false
           upload-artifact: true
@@ -194,7 +204,7 @@ jobs:
         run: |
           # The tag is framescout-inference-server-vX.Y.Z (own release-please
           # component). Image references must be lowercase; the owner is not.
-          version="${TAG_NAME##*-v}"
+          version="${TAG_NAME##*v}"
           major="${version%%.*}"
           minor="${version#*.}"; minor="${minor%.*}"
           image="$REGISTRY/${GITHUB_REPOSITORY_OWNER,,}/framescout-inference"

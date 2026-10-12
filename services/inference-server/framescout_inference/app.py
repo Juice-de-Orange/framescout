@@ -205,7 +205,18 @@ async def _body_limit(request: Request, call_next):  # type: ignore[no-untyped-d
     first, for authenticated and unauthenticated requests alike. A body
     without a Content-Length (chunked) cannot be checked here; the per-part
     caps stay as the second line of defence.
+
+    For `POST /admin/model` the admin key is checked here too, before the
+    size: its cap allows three model-sized parts, and only the admin may
+    make the server spool that much. A request without a valid key gets the
+    handler's own answer (401, or 503 with admin disabled) with nothing
+    read. The handler checks again.
     """
+    if request.method == "POST" and request.url.path == "/admin/model":
+        try:
+            _check_admin(request.headers.get("authorization"))
+        except HTTPException as exc:
+            return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
     if request.method in ("POST", "PUT", "PATCH"):
         if request.url.path == "/admin/model":
             limit = MAX_MODEL_BYTES * ADMIN_MODEL_PARTS

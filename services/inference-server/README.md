@@ -60,7 +60,9 @@ POST /admin/model   multipart: model=<onnx>, labels=<json>, centroids=<json>?  (
 Requests whose `Content-Length` is over `MAX_UPLOAD_BYTES` plus 64 KiB are
 refused with 413 before the body is read. On `/admin/model` `MAX_MODEL_BYTES`
 applies to each file — model, labels and centroids — so that request may be
-up to three times `MAX_MODEL_BYTES` plus 64 KiB.
+up to three times `MAX_MODEL_BYTES` plus 64 KiB. That allowance is for the
+admin only: without a valid `ADMIN_KEY` bearer the route answers 401 (503
+while admin is disabled) before any of the body is read.
 `MAX_MODEL_BYTES` fits the trainer's default backbone (`convnextv2_tiny`
 exports to about 110 MB) with headroom; raise it for base-sized backbones
 (about 350 MB). An image whose aspect ratio would need a resize intermediate

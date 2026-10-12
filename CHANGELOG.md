@@ -42,7 +42,8 @@ First public release, planned as `v0.2.0` (plugin API `0.1.0`):
   blocks `/healthz`, `/readyz` and other requests.
 - Inference server: `MAX_MODEL_BYTES` caps each file of a `POST /admin/model` upload, as documented;
   the request as a whole was capped at `MAX_MODEL_BYTES` + 64 KiB, so a model close to the limit
-  plus its centroids was refused with 413.
+  plus its centroids was refused with 413. The admin key is checked before the body is read, so
+  a client without it gets a 401 and cannot make the server spool anything.
 
 ### Changed
 

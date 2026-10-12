@@ -18,6 +18,8 @@ Config via environment:
   INPUT_SIZE      square crop size fed to the model            (default 224)
   API_KEY         optional bearer token; when set, required on POST /
   ADMIN_KEY       bearer token for /admin/model; unset → admin disabled (503)
+  MAX_UPLOAD_BYTES  cap for an image upload                    (default 10 MiB)
+  MAX_MODEL_BYTES   cap for each part of POST /admin/model     (default 256 MiB)
 """
 
 from __future__ import annotations
@@ -123,6 +125,37 @@ def readyz() -> Response:
 # is reachable unauthenticated whenever API_KEY is unset.
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)))
 
+# Upper bound for each part of POST /admin/model (model, labels, centroids).
+# MAX_UPLOAD_BYTES is sized for camera crops; a real export is far larger:
+# the trainer's default backbone (convnextv2_tiny, ~28 M parameters) exports
+# to ~110 MB of float32 weights. 256 MB leaves twice that as headroom and
+# covers the other small backbones (convnextv2_nano/pico, efficientnet,
+# vit_small); a base-sized backbone (~90 M parameters, ~350 MB) needs a
+# larger value. The route is admin-only and streamed to disk, so the cap
+# bounds disk use rather than memory.
+MAX_MODEL_BYTES = int(os.environ.get("MAX_MODEL_BYTES", str(256 * 1024 * 1024)))
+
+_CHUNK = 1024 * 1024
+
+
+async def _save_capped(upload: UploadFile, dest: Path, limit: int, setting: str) -> None:
+    """Stream an upload to `dest`, refusing anything over `limit`.
+
+    Chunked, so a model upload never sits in memory as a whole.
+    """
+    total = 0
+    with dest.open("wb") as f:
+        while chunk := await upload.read(_CHUNK):
+            total += len(chunk)
+            if total > limit:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"upload too large (limit {limit} bytes, set {setting})",
+                )
+            f.write(chunk)
+    if total == 0:
+        raise HTTPException(status_code=400, detail="empty upload")
+
 
 async def _read_capped(upload: UploadFile, limit: int = MAX_UPLOAD_BYTES) -> bytes:
     """Read an upload, refusing anything over `limit` without buffering it all.
@@ -210,8 +243,8 @@ async def admin_put_model(
     tmp_model = incoming / "model.onnx"
     tmp_labels = incoming / "labels.json"
     try:
-        tmp_model.write_bytes(await _read_capped(model))
-        tmp_labels.write_bytes(await _read_capped(labels))
+        await _save_capped(model, tmp_model, MAX_MODEL_BYTES, "MAX_MODEL_BYTES")
+        await _save_capped(labels, tmp_labels, MAX_MODEL_BYTES, "MAX_MODEL_BYTES")
         # Validate: this loads the ONNX (discovers outputs) + parses labels.
         try:
             candidate = Classifier(
@@ -231,7 +264,7 @@ async def admin_put_model(
         # so production individual-tagging tracks the freshly trained model.
         if centroids is not None and _centroids_path:
             tmp_cent = incoming / "centroids.json"
-            tmp_cent.write_bytes(await _read_capped(centroids))
+            await _save_capped(centroids, tmp_cent, MAX_MODEL_BYTES, "MAX_MODEL_BYTES")
             os.replace(tmp_cent, Path(_centroids_path))
         _matcher = IndividualMatcher.from_path(_centroids_path)
         return JSONResponse(_model_info())

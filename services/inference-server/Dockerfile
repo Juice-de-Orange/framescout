@@ -17,6 +17,11 @@ RUN pip install --no-cache-dir .
 
 # Non-root.
 RUN useradd --uid 1001 --create-home appuser
+# The model directory belongs to the runtime user: Docker seeds a new named
+# volume mounted at /models from this path, so POST /admin/model can stage
+# and rename files there. Without it the volume is root-owned and every
+# hot-swap fails.
+RUN mkdir -p /models && chown 1001:1001 /models
 USER 1001
 
 ENV INPUT_SIZE=224

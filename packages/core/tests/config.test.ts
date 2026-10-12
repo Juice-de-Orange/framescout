@@ -177,6 +177,30 @@ framescout:
     expect(() => parseConfigText(yaml)).toThrow(new RegExp(key));
   });
 
+  it.each([
+    ['framescout:\n  ui:\n    bnd: 127.0.0.1\n', "'bnd'", "'bind'"],
+    ['sink: []\n', "'sink'", "'sinks'"],
+    ['framescout:\n  dataDr: /data\n', "'dataDr'", "'dataDir'"],
+    [
+      'sinks:\n  - id: a\n    package: p\n    overflow: { queuesize: 8 }\n',
+      "'queuesize'",
+      "'queueSize'",
+    ],
+  ])('names the closest known key for an unknown one (%s)', (yaml, key, hint) => {
+    expect(() => parseConfigText(yaml)).toThrow(`${key} (did you mean ${hint}?)`);
+  });
+
+  it('gives no hint when nothing known is close', () => {
+    let message = '';
+    try {
+      parseConfigText('framescout:\n  zzzzzz: 1\n');
+    } catch (err) {
+      message = (err as Error).message;
+    }
+    expect(message).toContain("'zzzzzz'");
+    expect(message).not.toContain('did you mean');
+  });
+
   it('leaves plugin config blocks to the plugin', () => {
     const cfg = parseConfigText(`
 sinks:
@@ -186,5 +210,24 @@ sinks:
       anything: goes
 `);
     expect(cfg.sinks[0]!.config).toEqual({ anything: 'goes' });
+  });
+});
+
+describe('findUnknownKeys', () => {
+  it('treats passthrough and catchall objects as accepting every key', async () => {
+    const { z } = await import('zod');
+    const { findUnknownKeys } = await import('../src/config-hints.js');
+    expect(findUnknownKeys(z.object({ a: z.string() }).passthrough(), { a: 'x', b: 1 })).toEqual(
+      [],
+    );
+    expect(
+      findUnknownKeys(z.object({ a: z.string() }).catchall(z.number()), { a: 'x', b: 1 }),
+    ).toEqual([]);
+    expect(findUnknownKeys(z.object({ a: z.string() }), { a: 'x', b: 1 })).toEqual([
+      { path: 'b' },
+    ]);
+    expect(
+      findUnknownKeys(z.record(z.object({ name: z.number() })), { k: { name: 1, nme: 2 } }),
+    ).toEqual([{ path: 'k.nme', didYouMean: 'name' }]);
   });
 });

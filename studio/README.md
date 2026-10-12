@@ -26,6 +26,13 @@ cp studio.toml.example studio.toml && $EDITOR studio.toml
 ./run.sh                        # or run.bat on Windows — opens http://127.0.0.1:8770
 ```
 
+`studio.toml` knows the sections `[daemon]`, `[inference]`, `[studio]` and
+`[local_queue]`; `STUDIO_*` environment variables override it. A section, key
+or `STUDIO_*` variable the studio does not know is ignored with a warning at
+start that names the closest known name — for example a section renamed in an
+older setup: `unknown section [old] is ignored; its keys (base_url, token)
+belong to [daemon] — rename it to [daemon]`.
+
 ## Prerequisites
 
 **The daemon** must expose the queue to your main PC:

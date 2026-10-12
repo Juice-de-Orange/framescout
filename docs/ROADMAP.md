@@ -20,7 +20,9 @@ This split means plugin authors live with churn during the pre-1.0 phase
 and stability after. Internal/built-in plugins always track plugin-api.
 
 Container image tags follow the daemon: `ghcr.io/juice-de-orange/framescout:vX.Y.Z`,
-plus mutable `X.Y` and `X` aliases.
+plus mutable `X.Y` and `X` aliases. The inference server (`services/inference-server`)
+versions independently and publishes `ghcr.io/juice-de-orange/framescout-inference`
+with the same tag scheme.
 
 ---
 

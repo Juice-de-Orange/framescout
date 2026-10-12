@@ -188,15 +188,44 @@ newer version may have written data an older one does not read.
 
 ### Inference server
 
+The inference server is released on its own: its git tags are
+`framescout-inference-server-vX.Y.Z`, its changes are in
+`services/inference-server/CHANGELOG.md` (written by its first release),
+and its version does not follow the daemon's. Each release publishes
+`ghcr.io/juice-de-orange/framescout-inference` for `linux/amd64` and
+`linux/arm64` with the tags `vX.Y.Z`, `X.Y` and `X` (the last two move to
+the newest release).
+
+With the published image, the service in your compose file names the image
+and has no `build:` line:
+
+```yaml
+  inference-server:
+    image: ghcr.io/juice-de-orange/framescout-inference:v0.2.0
+```
+
+Set the new tag there (pin `vX.Y.Z`, so an update is always your decision),
+then:
+
 ```bash
-git pull                     # or check out the release tag
+docker compose -f docker-compose.inference.yml pull inference-server
+docker compose -f docker-compose.inference.yml up -d inference-server
+curl -s http://localhost:8002/readyz
+curl -s -H "Authorization: Bearer $ADMIN_KEY" http://localhost:8002/admin/model
+```
+
+From a source checkout (the compose file builds the image, as
+[`examples/split-host`](../examples/split-host) does):
+
+```bash
+git pull                     # or: git fetch --tags && git checkout framescout-inference-server-v0.2.1
 docker compose -f docker-compose.inference.yml up -d --build inference-server
 curl -s http://localhost:8002/readyz
 curl -s -H "Authorization: Bearer $ADMIN_KEY" http://localhost:8002/admin/model
 ```
 
-The model directory or volume is kept; the `sha256` is the same as before
-the update. New settings are listed in
+Either way the model directory or volume is kept; the `sha256` is the same
+as before the update. New settings are listed in
 [services/inference-server/README.md](../services/inference-server/README.md).
 
 A model volume created by an image from before v0.2 belongs to root, and a

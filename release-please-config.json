@@ -83,6 +83,11 @@
       "package-name": "@framescout/source-reolink-hub",
       "changelog-path": "CHANGELOG.md",
       "release-as": "0.2.0"
+    },
+    "services/inference-server": {
+      "release-type": "python",
+      "package-name": "framescout-inference-server",
+      "changelog-path": "CHANGELOG.md"
     }
   }
 }

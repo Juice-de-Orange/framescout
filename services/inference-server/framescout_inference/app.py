@@ -37,6 +37,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Form, Header, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
+from starlette.concurrency import run_in_threadpool
 import numpy as np
 from PIL import Image
 
@@ -340,8 +341,10 @@ async def admin_put_model(
             await _save_capped(centroids, tmp_cent, MAX_MODEL_BYTES, "MAX_MODEL_BYTES")
         # Validate: this loads the ONNX (discovers outputs) + parses labels.
         try:
-            candidate = Classifier(
-                str(tmp_model), str(tmp_labels), input_size=_input_size
+            # Loading, probing and hashing a ~100 MB model take seconds:
+            # off the event loop, like inference.
+            candidate = await run_in_threadpool(
+                Classifier, str(tmp_model), str(tmp_labels), input_size=_input_size
             )
         except Exception as exc:  # noqa: BLE001 — any load failure is a 400
             raise HTTPException(
@@ -350,7 +353,7 @@ async def admin_put_model(
         # Loading a graph never runs it: a model exported for another input
         # size, or labels.json from another run, would pass the load and
         # fail (or mislabel) on every real frame once live.
-        _probe(candidate)
+        await run_in_threadpool(_probe, candidate)
         # `from_path` degrades to "no individuals" instead of raising, so
         # check the result: a file without one usable embedding would turn
         # individual tagging off in production behind a 200.
@@ -362,7 +365,7 @@ async def admin_put_model(
                     status_code=400,
                     detail="invalid centroids: no usable individual embeddings",
                 )
-        sha = _sha256(tmp_model)
+        sha = await run_in_threadpool(_sha256, tmp_model)
 
         # ── Phase 2: promote atomically, then swap the in-memory pointers.
         os.replace(tmp_model, dest_model)
@@ -407,6 +410,30 @@ def _probe(candidate: Classifier) -> None:
         )
 
 
+def _decode(raw: bytes, box: tuple[float, float, float, float]) -> np.ndarray:
+    # PIL decodes lazily, so a corrupt image often only raises inside
+    # preprocess (convert/crop) — both run here, under one 400 guard.
+    img = Image.open(io.BytesIO(raw))
+    return preprocess(img, box, _input_size)
+
+
+async def _decode_off_loop(raw: bytes, box: tuple[float, float, float, float]) -> np.ndarray:
+    """Decode and preprocess in the threadpool.
+
+    Decoding, resizing and `InferenceSession.run` are blocking CPU work.
+    Done inline in an `async def` handler they froze the event loop: one
+    slow image held up /healthz, /readyz and every other request. The
+    handlers need `await` for the upload, so the blocking parts are handed
+    to the threadpool explicitly (ONNX Runtime sessions are thread-safe).
+    """
+    try:
+        return await run_in_threadpool(_decode, raw, box)
+    except ImageTooExtremeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 — any decode/preprocess failure is a 400
+        raise HTTPException(status_code=400, detail="invalid image") from exc
+
+
 @app.post("/")
 async def classify(
     request: Request,
@@ -429,20 +456,10 @@ async def classify(
         raise HTTPException(status_code=400, detail="bbox must be [x,y,w,h]") from exc
 
     raw = await _read_capped(image)
-    # PIL decodes lazily, so a corrupt image often only raises inside
-    # preprocess (convert/crop) — keep both under the same 400 guard.
-    try:
-        img = Image.open(io.BytesIO(raw))
-        chw = preprocess(img, box, _input_size)  # type: ignore[arg-type]
-    except HTTPException:
-        raise
-    except ImageTooExtremeError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:  # noqa: BLE001 — any decode/preprocess failure is a 400
-        raise HTTPException(status_code=400, detail="invalid image") from exc
-    want_embedding = embed == "1"
-    preds, embedding = _classifier.infer(
-        chw, want_embedding=want_embedding, logit_scale=_logit_scale
+    classifier = _classifier  # a concurrent hot-swap must not change it mid-request
+    chw = await _decode_off_loop(raw, box)  # type: ignore[arg-type]
+    preds, embedding = await run_in_threadpool(
+        classifier.infer, chw, want_embedding=embed == "1", logit_scale=_logit_scale
     )
 
     body: dict[str, object] = {
@@ -467,15 +484,11 @@ async def classify_bulletin(
     if _classifier is None:
         raise HTTPException(status_code=503, detail="model not loaded")
     raw = await _read_capped(image)
-    try:
-        img = Image.open(io.BytesIO(raw))
-        chw = preprocess(img, (0.0, 0.0, 1.0, 1.0), _input_size)  # type: ignore[arg-type]
-    except ImageTooExtremeError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:  # noqa: BLE001 — any decode/preprocess failure is a 400
-        raise HTTPException(status_code=400, detail="invalid image") from exc
-
-    preds, embedding = _classifier.infer(chw, want_embedding=True, logit_scale=_logit_scale)
+    classifier = _classifier  # a concurrent hot-swap must not change it mid-request
+    chw = await _decode_off_loop(raw, (0.0, 0.0, 1.0, 1.0))
+    preds, embedding = await run_in_threadpool(
+        classifier.infer, chw, want_embedding=True, logit_scale=_logit_scale
+    )
     if not preds:
         # A zero-width logits tensor yields no predictions. Unguarded this was
         # an IndexError -> 500 with a stack trace; a loaded-but-unusable model

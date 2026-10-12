@@ -149,3 +149,23 @@ def test_good_swap_with_centroids_promotes_all_three(server) -> None:
     assert json.loads(labels_bytes) == ["a", "b", "c"]
     assert cent_bytes == cent
     assert sorted(os.listdir(tmp_path / "live")) == ["centroids.json", "labels.json", "model.onnx"]
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root can write to a 0555 directory")
+def test_unwritable_model_dir_is_a_clear_error_and_keeps_the_old_model(server) -> None:
+    """A named volume mounted on a path the image does not own is
+    root-owned; the staging mkdir failed with a bare 500."""
+    c, tmp_path = server
+    before_info, before_files = c.get("/admin/model", headers=AUTH).json(), _live_state(tmp_path)
+    model = tmp_path / "new.onnx"
+    make_tiny_onnx(model, seed=3)
+    live = tmp_path / "live"
+    live.chmod(0o555)
+    try:
+        r = _post(c, model, ["a", "b", "c"])
+    finally:
+        live.chmod(0o755)
+
+    assert r.status_code == 500
+    assert "not writable" in r.json()["detail"]
+    _assert_unchanged(c, tmp_path, before_info, before_files)

@@ -285,7 +285,14 @@ async def admin_put_model(
     # Temp dir on the SAME filesystem as the destinations so os.replace
     # is atomic.
     incoming = dest_model.parent / f"incoming-{uuid.uuid4().hex}"
-    incoming.mkdir(parents=True, exist_ok=True)
+    try:
+        incoming.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"model directory {dest_model.parent} is not writable by the server "
+            f"(uid {os.getuid()}): {exc.strerror}",
+        ) from exc
     tmp_model = incoming / "model.onnx"
     tmp_labels = incoming / "labels.json"
     tmp_cent: Path | None = None

@@ -137,6 +137,46 @@ MAX_MODEL_BYTES = int(os.environ.get("MAX_MODEL_BYTES", str(256 * 1024 * 1024)))
 
 _CHUNK = 1024 * 1024
 
+# Allowance for the multipart envelope (boundaries, part headers, the small
+# form fields) on top of the payload caps above.
+MULTIPART_OVERHEAD = 64 * 1024
+
+
+@app.middleware("http")
+async def _body_limit(request: Request, call_next):  # type: ignore[no-untyped-def]
+    """Refuse an oversized body from its Content-Length, before Starlette
+    parses it.
+
+    The per-part caps (`_read_capped`, `_save_capped`) only run inside the
+    handler, and FastAPI parses the multipart form before the handler — and
+    its auth check — runs: the whole body is spooled to a temporary file
+    first, for authenticated and unauthenticated requests alike. A body
+    without a Content-Length (chunked) cannot be checked here; the per-part
+    caps stay as the second line of defence.
+    """
+    if request.method in ("POST", "PUT", "PATCH"):
+        if request.url.path == "/admin/model":
+            limit, setting = MAX_MODEL_BYTES, "MAX_MODEL_BYTES"
+        else:
+            limit, setting = MAX_UPLOAD_BYTES, "MAX_UPLOAD_BYTES"
+        raw_length = request.headers.get("content-length")
+        if raw_length is not None:
+            try:
+                length = int(raw_length)
+            except ValueError:
+                return JSONResponse({"detail": "invalid Content-Length"}, status_code=400)
+            if length > limit + MULTIPART_OVERHEAD:
+                return JSONResponse(
+                    {
+                        "detail": (
+                            f"request body too large ({length} bytes, "
+                            f"limit {limit} bytes, set {setting})"
+                        )
+                    },
+                    status_code=413,
+                )
+    return await call_next(request)
+
 
 async def _save_capped(upload: UploadFile, dest: Path, limit: int, setting: str) -> None:
     """Stream an upload to `dest`, refusing anything over `limit`.

@@ -21,12 +21,16 @@ ENV PNPM_HOME=/pnpm \
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
-    && corepack enable \
-    && corepack prepare pnpm@11.1.2 --activate
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+# Node 25+ no longer ships Corepack, so pnpm comes from npm. The version is
+# read from `packageManager` in package.json (the pin CI's pnpm/action-setup
+# uses too), so the image cannot drift from it. Installed before .npmrc is
+# copied: that file is pnpm's, not npm's.
+COPY package.json ./
+RUN npm install -g "$(node -p "require('./package.json').packageManager.split('+')[0]")"
+COPY pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY tsconfig.base.json tsconfig.json ./
 COPY packages packages
 COPY apps apps

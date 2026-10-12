@@ -27,7 +27,12 @@ USER 1001
 ENV INPUT_SIZE=224
 EXPOSE 8002
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8002/healthz').status==200 else 1)"
+# Readiness, not liveness: /healthz answers 200 as soon as the process is
+# up, so a container whose model never loaded (no model volume, a corrupt
+# file, a MODEL_SHA256 mismatch) reported healthy forever. /readyz is 200
+# only with a model loaded; urlopen raises on its 503, which exits non-zero.
+# A server waiting for its first deploy is therefore "unhealthy" until then.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8002/readyz').status==200 else 1)"
 
 CMD ["uvicorn", "framescout_inference.app:app", "--host", "0.0.0.0", "--port", "8002"]

@@ -65,6 +65,18 @@ exports to about 110 MB) with headroom; raise it for base-sized backbones
 above `MAX_INTERMEDIATE_PIXELS` (a 4000×1 strip, or a 1 px high bbox) is a
 400 — a 4K frame needs 0.09 Mpx.
 
+### `/healthz` and `/readyz`, and the container healthcheck
+
+`GET /healthz` answers 200 whenever the process runs (liveness). `GET /readyz`
+answers 200 only with a model loaded, otherwise 503 with the reason
+(readiness). The image's `HEALTHCHECK` probes `/readyz`, so `docker ps`
+shows a server without a usable model — no model deployed yet, a corrupt
+file, a `MODEL_SHA256` mismatch — as **unhealthy** until a working model is
+deployed. Docker itself does not restart unhealthy containers; it is a
+signal for you or your monitoring. If something waits on this container with
+`depends_on: condition: service_healthy`, it waits for the first model; probe
+`/healthz` in your own `healthcheck:` if you want liveness only.
+
 ### Start-up warnings
 
 At start the server logs a warning when `API_KEY` is unset (`POST /` and

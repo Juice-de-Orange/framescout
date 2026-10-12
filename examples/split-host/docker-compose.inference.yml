@@ -14,7 +14,8 @@ services:
     environment:
       MODEL_PATH: /models/model.onnx
       LABELS_PATH: /models/labels.json
-      # Pin the trained model's SHA so a corrupt/again-wrong file fails fast.
+      # Pin the trained model's SHA: a corrupt/again-wrong file leaves the server
+      # unloaded (/readyz 503 names the mismatch) instead of serving it.
       MODEL_SHA256: ${CLASSIFY_MODEL_SHA256:-}
       API_KEY: ${CLASSIFY_API_KEY:?set CLASSIFY_API_KEY}
       INPUT_SIZE: "224"

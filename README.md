@@ -185,7 +185,7 @@ welcome.
 
 - The Reolink source relies on the hub's search window to skip clips it has already processed;
   it keeps a watermark but does not deduplicate clips the hub returns again.
-- The inference server's `MODEL_SHA256` pin is checked at start only; a model deployed through
+- The inference server's `MODEL_SHA256` pin is checked when the server starts only; a model deployed through
   `POST /admin/model` does not update it (see [operations](docs/operations.md#inference-server-model-volume)).
 - `examples/split-host` mounts the model directory read-only and sets no `ADMIN_KEY`, so the
   studio cannot deploy to it as shipped.

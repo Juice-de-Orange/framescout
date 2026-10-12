@@ -14,7 +14,7 @@ Wire contract (matches @framescout/detector-classify-http):
 Config via environment:
   MODEL_PATH      path to the exported model.onnx              (required)
   LABELS_PATH     path to labels.json (index → species name)   (required)
-  MODEL_SHA256    optional pin; refuses to start on mismatch
+  MODEL_SHA256    optional pin; a mismatch leaves the server unloaded
   INPUT_SIZE      square crop size fed to the model            (default 224)
   API_KEY         optional bearer token; when set, required on POST /
   ADMIN_KEY       bearer token for /admin/model; unset → admin disabled (503)
@@ -27,6 +27,7 @@ from __future__ import annotations
 import hmac
 import io
 import json
+import logging
 import os
 import shutil
 import uuid
@@ -62,26 +63,48 @@ _individual_margin = float(os.environ.get("INDIVIDUAL_MARGIN", "0.05"))
 _matcher: IndividualMatcher | None = None
 
 
+# Why the server is not ready while `_classifier` is None; /readyz says it.
+_unloaded_reason = "no model loaded yet"
+log = logging.getLogger("framescout_inference")
+
+
 def _load() -> None:
-    global _classifier, _model_sha, _matcher
+    """Load the model at start. Never raises: every failure leaves the
+    server up but unloaded (/readyz 503 with the reason), because
+    POST /admin/model is how a good model gets back in. Raising here used
+    to abort uvicorn's start, which `restart: unless-stopped` turns into a
+    crash loop."""
+    global _classifier, _model_sha, _matcher, _unloaded_reason
     model_path = os.environ.get("MODEL_PATH")
     labels_path = os.environ.get("LABELS_PATH")
     if not model_path or not labels_path:
         # Leave unloaded → /readyz reports 503; lets the container start
         # for health-wiring before the model volume is mounted.
+        _unloaded_reason = "no model configured (MODEL_PATH/LABELS_PATH unset)"
         return
     if not (Path(model_path).exists() and Path(labels_path).exists()):
         # Paths configured but not populated yet (e.g. a fresh server before
         # the first deploy) — boot unloaded so the first /admin/model upload
         # can land; /readyz stays 503 until then.
+        _unloaded_reason = "no model deployed yet (MODEL_PATH/LABELS_PATH do not exist)"
         return
-    _classifier = Classifier(
-        model_path,
-        labels_path,
-        input_size=_input_size,
-        expected_sha256=os.environ.get("MODEL_SHA256"),
-    )
-    _model_sha = _sha256(Path(model_path))
+    try:
+        classifier = Classifier(
+            model_path,
+            labels_path,
+            input_size=_input_size,
+            expected_sha256=os.environ.get("MODEL_SHA256"),
+        )
+        sha = _sha256(Path(model_path))
+    except Exception as exc:  # noqa: BLE001 — any load failure leaves us unloaded
+        _classifier, _model_sha = None, None
+        _unloaded_reason = f"model could not be loaded: {type(exc).__name__}: {exc}"
+        log.error(
+            "%s — serving unloaded; deploy a working model with POST /admin/model",
+            _unloaded_reason,
+        )
+        return
+    _classifier, _model_sha = classifier, sha
     _matcher = IndividualMatcher.from_path(_centroids_path)
 
 
@@ -117,7 +140,7 @@ def healthz() -> dict[str, bool]:
 @app.get("/readyz")
 def readyz() -> Response:
     if _classifier is None:
-        return JSONResponse({"ready": False}, status_code=503)
+        return JSONResponse({"ready": False, "reason": _unloaded_reason}, status_code=503)
     return JSONResponse({"ready": True})
 
 
@@ -264,7 +287,7 @@ def _model_info() -> dict[str, object]:
 def admin_get_model(authorization: str | None = Header(default=None)) -> JSONResponse:
     _check_admin(authorization)
     if _classifier is None:
-        return JSONResponse({"loaded": False}, status_code=503)
+        return JSONResponse({"loaded": False, "reason": _unloaded_reason}, status_code=503)
     return JSONResponse(_model_info())
 
 
@@ -284,7 +307,7 @@ async def admin_put_model(
     must contain at least one usable embedding. Only then are the files
     promoted with `os.replace` and the in-memory pointers swapped, so any
     failure leaves the served model, labels and centroids as they were."""
-    global _classifier, _model_sha, _matcher
+    global _classifier, _model_sha, _matcher, _unloaded_reason
     _check_admin(authorization)
     model_path = os.environ.get("MODEL_PATH")
     labels_path = os.environ.get("LABELS_PATH")
@@ -348,6 +371,7 @@ async def admin_put_model(
             os.replace(tmp_cent, Path(_centroids_path))
         _classifier = candidate
         _model_sha = sha
+        _unloaded_reason = ""
         # Without new centroids, re-read the file so a manually replaced one
         # still takes effect.
         _matcher = candidate_matcher or IndividualMatcher.from_path(_centroids_path)

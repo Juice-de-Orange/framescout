@@ -45,7 +45,7 @@ POST /admin/model   multipart: model=<onnx>, labels=<json>, centroids=<json>?  (
 | `MODEL_PATH`              | exported `model.onnx` (required)                           |
 | `LABELS_PATH`             | `labels.json`, index → species name (required)             |
 | `CENTROIDS_PATH`          | optional `centroids.json` for individual tagging on `/classify` |
-| `MODEL_SHA256`            | optional pin; refuses to start on mismatch (not checked on hot-swap: update it after a deploy) |
+| `MODEL_SHA256`            | optional pin; on a mismatch the server starts unloaded (not checked on hot-swap: update it after a deploy) |
 | `INPUT_SIZE`              | crop size fed to the model (default 224)                   |
 | `API_KEY`                 | optional bearer token required on `POST /` and `/classify` |
 | `ADMIN_KEY`               | bearer token for `/admin/model`; unset → admin disabled (503) |
@@ -64,6 +64,13 @@ exports to about 110 MB) with headroom; raise it for base-sized backbones
 (about 350 MB). An image whose aspect ratio would need a resize intermediate
 above `MAX_INTERMEDIATE_PIXELS` (a 4000×1 strip, or a 1 px high bbox) is a
 400 — a 4K frame needs 0.09 Mpx.
+
+### Start without a usable model
+
+A missing, corrupt or wrongly pinned model does not stop the server: it
+starts unloaded, `GET /readyz` answers 503 with the reason
+(`{"ready": false, "reason": "model could not be loaded: …"}`, also logged),
+and `POST /admin/model` stays available to deploy a working model.
 
 ### Model hot-swap
 

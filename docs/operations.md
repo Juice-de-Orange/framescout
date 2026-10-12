@@ -134,9 +134,9 @@ curl -s http://localhost:8002/readyz            # {"ready":true}
 
 The `chown` keeps the directory writable for later deploys even when the
 backup comes from a root-owned volume. If you pin `MODEL_SHA256`, set it to
-the restored model's hash: the server
-refuses to start with a model whose hash differs, and a deploy through
-`/admin/model` does not update the pin.
+the restored model's hash: with a model whose hash differs the server
+starts unloaded (`/readyz` answers 503 with `sha256 mismatch`), and a deploy
+through `/admin/model` does not update the pin.
 
 ## Updating
 

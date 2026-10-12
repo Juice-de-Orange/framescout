@@ -45,7 +45,7 @@ POST /admin/model   multipart: model=<onnx>, labels=<json>, centroids=<json>?  (
 | `MODEL_PATH`              | exported `model.onnx` (required)                           |
 | `LABELS_PATH`             | `labels.json`, index → species name (required)             |
 | `CENTROIDS_PATH`          | optional `centroids.json` for individual tagging on `/classify` |
-| `MODEL_SHA256`            | optional pin; refuses to start on mismatch (not checked on hot-swap: update it after a deploy) |
+| `MODEL_SHA256`            | optional pin; on a mismatch the server starts unloaded (not checked on hot-swap: update it after a deploy) |
 | `INPUT_SIZE`              | crop size fed to the model (default 224)                   |
 | `API_KEY`                 | optional bearer token required on `POST /` and `/classify` |
 | `ADMIN_KEY`               | bearer token for `/admin/model`; unset → admin disabled (503) |
@@ -54,16 +54,45 @@ POST /admin/model   multipart: model=<onnx>, labels=<json>, centroids=<json>?  (
 | `INDIVIDUAL_THRESHOLD`    | minimum similarity for an individual tag (default 0.6)     |
 | `INDIVIDUAL_MARGIN`       | lead the best individual needs over the runner-up (default 0.05) |
 | `MAX_UPLOAD_BYTES`        | largest image upload (default 10 MiB)                      |
-| `MAX_MODEL_BYTES`         | largest `POST /admin/model` request (default 256 MiB)      |
+| `MAX_MODEL_BYTES`         | largest file in a `POST /admin/model` request (default 256 MiB) |
 | `MAX_INTERMEDIATE_PIXELS` | largest resize intermediate (default 16 000 000)           |
 
-Requests whose `Content-Length` is over `MAX_UPLOAD_BYTES` (`MAX_MODEL_BYTES`
-on `/admin/model`) plus 64 KiB are refused with 413 before the body is read.
+Requests whose `Content-Length` is over `MAX_UPLOAD_BYTES` plus 64 KiB are
+refused with 413 before the body is read. On `/admin/model` `MAX_MODEL_BYTES`
+applies to each file — model, labels and centroids — so that request may be
+up to three times `MAX_MODEL_BYTES` plus 64 KiB. That allowance is for the
+admin only: without a valid `ADMIN_KEY` bearer the route answers 401 (503
+while admin is disabled) before any of the body is read.
 `MAX_MODEL_BYTES` fits the trainer's default backbone (`convnextv2_tiny`
 exports to about 110 MB) with headroom; raise it for base-sized backbones
 (about 350 MB). An image whose aspect ratio would need a resize intermediate
 above `MAX_INTERMEDIATE_PIXELS` (a 4000×1 strip, or a 1 px high bbox) is a
 400 — a 4K frame needs 0.09 Mpx.
+
+### `/healthz` and `/readyz`, and the container healthcheck
+
+`GET /healthz` answers 200 whenever the process runs (liveness). `GET /readyz`
+answers 200 only with a model loaded, otherwise 503 with the reason
+(readiness). The image's `HEALTHCHECK` probes `/readyz`, so `docker ps`
+shows a server without a usable model — no model deployed yet, a corrupt
+file, a `MODEL_SHA256` mismatch — as **unhealthy** until a working model is
+deployed. Docker itself does not restart unhealthy containers; it is a
+signal for you or your monitoring. If something waits on this container with
+`depends_on: condition: service_healthy`, it waits for the first model; probe
+`/healthz` in your own `healthcheck:` if you want liveness only.
+
+### Start-up warnings
+
+At start the server logs a warning when `API_KEY` is unset (`POST /` and
+`POST /classify` then accept requests without a key) and when `ADMIN_KEY`
+is unset (model deploys are disabled). Neither stops the server.
+
+### Start without a usable model
+
+A missing, corrupt or wrongly pinned model does not stop the server: it
+starts unloaded, `GET /readyz` answers 503 with the reason
+(`{"ready": false, "reason": "model could not be loaded: …"}`, also logged),
+and `POST /admin/model` stays available to deploy a working model.
 
 ### Model hot-swap
 

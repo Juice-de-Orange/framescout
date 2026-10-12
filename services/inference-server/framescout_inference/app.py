@@ -14,7 +14,7 @@ Wire contract (matches @framescout/detector-classify-http):
 Config via environment:
   MODEL_PATH      path to the exported model.onnx              (required)
   LABELS_PATH     path to labels.json (index → species name)   (required)
-  MODEL_SHA256    optional pin; refuses to start on mismatch
+  MODEL_SHA256    optional pin; a mismatch leaves the server unloaded
   INPUT_SIZE      square crop size fed to the model            (default 224)
   API_KEY         optional bearer token; when set, required on POST /
   ADMIN_KEY       bearer token for /admin/model; unset → admin disabled (503)
@@ -27,6 +27,7 @@ from __future__ import annotations
 import hmac
 import io
 import json
+import logging
 import os
 import shutil
 import uuid
@@ -36,6 +37,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Form, Header, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
+from starlette.concurrency import run_in_threadpool
 import numpy as np
 from PIL import Image
 
@@ -62,26 +64,54 @@ _individual_margin = float(os.environ.get("INDIVIDUAL_MARGIN", "0.05"))
 _matcher: IndividualMatcher | None = None
 
 
+# Why the server is not ready while `_classifier` is None; /readyz says it.
+_unloaded_reason = "no model loaded yet"
+log = logging.getLogger("framescout_inference")
+if not log.handlers:
+    # uvicorn configures only its own loggers; without a handler these lines
+    # would reach stderr without their level. Same layout as uvicorn's.
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("%(levelname)s:  %(message)s"))
+    log.addHandler(_handler)
+
+
 def _load() -> None:
-    global _classifier, _model_sha, _matcher
+    """Load the model at start. Never raises: every failure leaves the
+    server up but unloaded (/readyz 503 with the reason), because
+    POST /admin/model is how a good model gets back in. Raising here used
+    to abort uvicorn's start, which `restart: unless-stopped` turns into a
+    crash loop."""
+    global _classifier, _model_sha, _matcher, _unloaded_reason
     model_path = os.environ.get("MODEL_PATH")
     labels_path = os.environ.get("LABELS_PATH")
     if not model_path or not labels_path:
         # Leave unloaded → /readyz reports 503; lets the container start
         # for health-wiring before the model volume is mounted.
+        _unloaded_reason = "no model configured (MODEL_PATH/LABELS_PATH unset)"
         return
     if not (Path(model_path).exists() and Path(labels_path).exists()):
         # Paths configured but not populated yet (e.g. a fresh server before
         # the first deploy) — boot unloaded so the first /admin/model upload
         # can land; /readyz stays 503 until then.
+        _unloaded_reason = "no model deployed yet (MODEL_PATH/LABELS_PATH do not exist)"
         return
-    _classifier = Classifier(
-        model_path,
-        labels_path,
-        input_size=_input_size,
-        expected_sha256=os.environ.get("MODEL_SHA256"),
-    )
-    _model_sha = _sha256(Path(model_path))
+    try:
+        classifier = Classifier(
+            model_path,
+            labels_path,
+            input_size=_input_size,
+            expected_sha256=os.environ.get("MODEL_SHA256"),
+        )
+        sha = _sha256(Path(model_path))
+    except Exception as exc:  # noqa: BLE001 — any load failure leaves us unloaded
+        _classifier, _model_sha = None, None
+        _unloaded_reason = f"model could not be loaded: {type(exc).__name__}: {exc}"
+        log.error(
+            "%s — serving unloaded; deploy a working model with POST /admin/model",
+            _unloaded_reason,
+        )
+        return
+    _classifier, _model_sha = classifier, sha
     _matcher = IndividualMatcher.from_path(_centroids_path)
 
 
@@ -99,9 +129,25 @@ def _sweep_incoming() -> None:
         pass
 
 
+def _warn_about_keys() -> None:
+    """Say at start what an unset key means — it is easy to miss that an
+    empty API_KEY switches authentication off."""
+    if _api_key is None:
+        log.warning(
+            "API_KEY is not set: POST / and POST /classify accept requests without a key. "
+            "Set API_KEY unless only trusted clients can reach this port."
+        )
+    if _admin_key is None:
+        log.warning(
+            "ADMIN_KEY is not set: POST /admin/model is disabled (503), so models "
+            "cannot be deployed to this server."
+        )
+
+
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     _sweep_incoming()
+    _warn_about_keys()
     _load()
     yield
 
@@ -117,7 +163,7 @@ def healthz() -> dict[str, bool]:
 @app.get("/readyz")
 def readyz() -> Response:
     if _classifier is None:
-        return JSONResponse({"ready": False}, status_code=503)
+        return JSONResponse({"ready": False, "reason": _unloaded_reason}, status_code=503)
     return JSONResponse({"ready": True})
 
 
@@ -138,6 +184,11 @@ MAX_MODEL_BYTES = int(os.environ.get("MAX_MODEL_BYTES", str(256 * 1024 * 1024)))
 
 _CHUNK = 1024 * 1024
 
+# POST /admin/model carries up to three files — model, labels, centroids —
+# and each may use the whole of MAX_MODEL_BYTES, so the request as a whole
+# may be up to three times that.
+ADMIN_MODEL_PARTS = 3
+
 # Allowance for the multipart envelope (boundaries, part headers, the small
 # form fields) on top of the payload caps above.
 MULTIPART_OVERHEAD = 64 * 1024
@@ -154,10 +205,22 @@ async def _body_limit(request: Request, call_next):  # type: ignore[no-untyped-d
     first, for authenticated and unauthenticated requests alike. A body
     without a Content-Length (chunked) cannot be checked here; the per-part
     caps stay as the second line of defence.
+
+    For `POST /admin/model` the admin key is checked here too, before the
+    size: its cap allows three model-sized parts, and only the admin may
+    make the server spool that much. A request without a valid key gets the
+    handler's own answer (401, or 503 with admin disabled) with nothing
+    read. The handler checks again.
     """
+    if request.method == "POST" and request.url.path == "/admin/model":
+        try:
+            _check_admin(request.headers.get("authorization"))
+        except HTTPException as exc:
+            return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
     if request.method in ("POST", "PUT", "PATCH"):
         if request.url.path == "/admin/model":
-            limit, setting = MAX_MODEL_BYTES, "MAX_MODEL_BYTES"
+            limit = MAX_MODEL_BYTES * ADMIN_MODEL_PARTS
+            setting = f"MAX_MODEL_BYTES (x{ADMIN_MODEL_PARTS}: model, labels, centroids)"
         else:
             limit, setting = MAX_UPLOAD_BYTES, "MAX_UPLOAD_BYTES"
         raw_length = request.headers.get("content-length")
@@ -214,14 +277,27 @@ async def _read_capped(upload: UploadFile, limit: int = MAX_UPLOAD_BYTES) -> byt
     return buf
 
 
+def _same_secret(received: str, expected: str) -> bool:
+    """Constant-time comparison of a header value with the expected one.
+
+    On bytes, not str: `hmac.compare_digest` raises TypeError for a str with
+    non-ASCII characters, and uvicorn hands headers over latin-1 decoded,
+    so any client could turn an unauthenticated request into a 500.
+    `surrogateescape` keeps even malformed values comparable.
+    """
+    return hmac.compare_digest(
+        received.encode("utf-8", "surrogateescape"),
+        expected.encode("utf-8", "surrogateescape"),
+    )
+
+
 def _check_auth(authorization: str | None) -> None:
-    # `hmac.compare_digest` rather than `!=`: the comparison is against a
-    # secret. The TypeScript side gets this right (auth/token-file.ts uses
-    # `timingSafeEqual`); this did not.
+    # Constant-time rather than `!=`: the comparison is against a secret.
+    # The TypeScript side does the same (auth/token-file.ts uses
+    # `timingSafeEqual`).
     if _api_key is None:
         return
-    expected = f"Bearer {_api_key}"
-    if authorization is None or not hmac.compare_digest(authorization, expected):
+    if authorization is None or not _same_secret(authorization, f"Bearer {_api_key}"):
         raise HTTPException(status_code=401, detail="unauthorized")
 
 
@@ -230,8 +306,7 @@ def _check_admin(authorization: str | None) -> None:
     # disabled entirely (never allow unauthenticated swaps).
     if _admin_key is None:
         raise HTTPException(status_code=503, detail="admin disabled (ADMIN_KEY unset)")
-    expected = f"Bearer {_admin_key}"
-    if authorization is None or not hmac.compare_digest(authorization, expected):
+    if authorization is None or not _same_secret(authorization, f"Bearer {_admin_key}"):
         raise HTTPException(status_code=401, detail="unauthorized")
 
 
@@ -252,7 +327,7 @@ def _model_info() -> dict[str, object]:
 def admin_get_model(authorization: str | None = Header(default=None)) -> JSONResponse:
     _check_admin(authorization)
     if _classifier is None:
-        return JSONResponse({"loaded": False}, status_code=503)
+        return JSONResponse({"loaded": False, "reason": _unloaded_reason}, status_code=503)
     return JSONResponse(_model_info())
 
 
@@ -272,7 +347,7 @@ async def admin_put_model(
     must contain at least one usable embedding. Only then are the files
     promoted with `os.replace` and the in-memory pointers swapped, so any
     failure leaves the served model, labels and centroids as they were."""
-    global _classifier, _model_sha, _matcher
+    global _classifier, _model_sha, _matcher, _unloaded_reason
     _check_admin(authorization)
     model_path = os.environ.get("MODEL_PATH")
     labels_path = os.environ.get("LABELS_PATH")
@@ -305,8 +380,10 @@ async def admin_put_model(
             await _save_capped(centroids, tmp_cent, MAX_MODEL_BYTES, "MAX_MODEL_BYTES")
         # Validate: this loads the ONNX (discovers outputs) + parses labels.
         try:
-            candidate = Classifier(
-                str(tmp_model), str(tmp_labels), input_size=_input_size
+            # Loading, probing and hashing a ~100 MB model take seconds:
+            # off the event loop, like inference.
+            candidate = await run_in_threadpool(
+                Classifier, str(tmp_model), str(tmp_labels), input_size=_input_size
             )
         except Exception as exc:  # noqa: BLE001 — any load failure is a 400
             raise HTTPException(
@@ -315,7 +392,7 @@ async def admin_put_model(
         # Loading a graph never runs it: a model exported for another input
         # size, or labels.json from another run, would pass the load and
         # fail (or mislabel) on every real frame once live.
-        _probe(candidate)
+        await run_in_threadpool(_probe, candidate)
         # `from_path` degrades to "no individuals" instead of raising, so
         # check the result: a file without one usable embedding would turn
         # individual tagging off in production behind a 200.
@@ -327,7 +404,7 @@ async def admin_put_model(
                     status_code=400,
                     detail="invalid centroids: no usable individual embeddings",
                 )
-        sha = _sha256(tmp_model)
+        sha = await run_in_threadpool(_sha256, tmp_model)
 
         # ── Phase 2: promote atomically, then swap the in-memory pointers.
         os.replace(tmp_model, dest_model)
@@ -336,6 +413,7 @@ async def admin_put_model(
             os.replace(tmp_cent, Path(_centroids_path))
         _classifier = candidate
         _model_sha = sha
+        _unloaded_reason = ""
         # Without new centroids, re-read the file so a manually replaced one
         # still takes effect.
         _matcher = candidate_matcher or IndividualMatcher.from_path(_centroids_path)
@@ -371,6 +449,30 @@ def _probe(candidate: Classifier) -> None:
         )
 
 
+def _decode(raw: bytes, box: tuple[float, float, float, float]) -> np.ndarray:
+    # PIL decodes lazily, so a corrupt image often only raises inside
+    # preprocess (convert/crop) — both run here, under one 400 guard.
+    img = Image.open(io.BytesIO(raw))
+    return preprocess(img, box, _input_size)
+
+
+async def _decode_off_loop(raw: bytes, box: tuple[float, float, float, float]) -> np.ndarray:
+    """Decode and preprocess in the threadpool.
+
+    Decoding, resizing and `InferenceSession.run` are blocking CPU work.
+    Done inline in an `async def` handler they froze the event loop: one
+    slow image held up /healthz, /readyz and every other request. The
+    handlers need `await` for the upload, so the blocking parts are handed
+    to the threadpool explicitly (ONNX Runtime sessions are thread-safe).
+    """
+    try:
+        return await run_in_threadpool(_decode, raw, box)
+    except ImageTooExtremeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 — any decode/preprocess failure is a 400
+        raise HTTPException(status_code=400, detail="invalid image") from exc
+
+
 @app.post("/")
 async def classify(
     request: Request,
@@ -393,20 +495,10 @@ async def classify(
         raise HTTPException(status_code=400, detail="bbox must be [x,y,w,h]") from exc
 
     raw = await _read_capped(image)
-    # PIL decodes lazily, so a corrupt image often only raises inside
-    # preprocess (convert/crop) — keep both under the same 400 guard.
-    try:
-        img = Image.open(io.BytesIO(raw))
-        chw = preprocess(img, box, _input_size)  # type: ignore[arg-type]
-    except HTTPException:
-        raise
-    except ImageTooExtremeError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:  # noqa: BLE001 — any decode/preprocess failure is a 400
-        raise HTTPException(status_code=400, detail="invalid image") from exc
-    want_embedding = embed == "1"
-    preds, embedding = _classifier.infer(
-        chw, want_embedding=want_embedding, logit_scale=_logit_scale
+    classifier = _classifier  # a concurrent hot-swap must not change it mid-request
+    chw = await _decode_off_loop(raw, box)  # type: ignore[arg-type]
+    preds, embedding = await run_in_threadpool(
+        classifier.infer, chw, want_embedding=embed == "1", logit_scale=_logit_scale
     )
 
     body: dict[str, object] = {
@@ -431,15 +523,11 @@ async def classify_bulletin(
     if _classifier is None:
         raise HTTPException(status_code=503, detail="model not loaded")
     raw = await _read_capped(image)
-    try:
-        img = Image.open(io.BytesIO(raw))
-        chw = preprocess(img, (0.0, 0.0, 1.0, 1.0), _input_size)  # type: ignore[arg-type]
-    except ImageTooExtremeError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:  # noqa: BLE001 — any decode/preprocess failure is a 400
-        raise HTTPException(status_code=400, detail="invalid image") from exc
-
-    preds, embedding = _classifier.infer(chw, want_embedding=True, logit_scale=_logit_scale)
+    classifier = _classifier  # a concurrent hot-swap must not change it mid-request
+    chw = await _decode_off_loop(raw, (0.0, 0.0, 1.0, 1.0))
+    preds, embedding = await run_in_threadpool(
+        classifier.infer, chw, want_embedding=True, logit_scale=_logit_scale
+    )
     if not preds:
         # A zero-width logits tensor yields no predictions. Unguarded this was
         # an IndexError -> 500 with a stack trace; a loaded-but-unusable model

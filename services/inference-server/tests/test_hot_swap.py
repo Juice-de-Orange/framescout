@@ -114,6 +114,30 @@ def test_oversized_centroids_do_not_half_swap(server, monkeypatch) -> None:
     _assert_unchanged(c, tmp_path, before_info, before_files)
 
 
+def test_each_part_may_use_the_whole_model_cap(server, monkeypatch) -> None:
+    """MAX_MODEL_BYTES caps each part, as documented: a model just under it
+    plus a real-sized centroids file (~96 KB) goes live. The request-size
+    middleware used to cap the whole body at MAX_MODEL_BYTES + 64 KiB and
+    refused exactly this upload with 413."""
+    c, tmp_path = server
+    model = tmp_path / "new.onnx"
+    make_tiny_onnx(model, seed=3, pad_bytes=200_000)
+    monkeypatch.setattr(appmod, "MAX_MODEL_BYTES", model.stat().st_size + 62)
+    centroids = json.dumps(
+        {f"ind-{i:04d}": {"species": "marten", "embedding": [0.5] * 4} for i in range(1600)}
+    ).encode()
+    assert len(centroids) > 64 * 1024 + 62
+
+    r = _post(c, model, ["a", "b", "c"], centroids)
+
+    assert r.status_code == 200, r.text
+    assert _live_state(tmp_path) == (
+        model.read_bytes(),
+        json.dumps(["a", "b", "c"]).encode(),
+        centroids,
+    )
+
+
 def test_unusable_centroids_are_400_and_keep_the_old_model(server) -> None:
     """A centroids file without one usable embedding would switch off
     individual tagging in production while the deploy reports 200."""

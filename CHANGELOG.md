@@ -34,12 +34,28 @@ First public release, planned as `v0.2.0` (plugin API `0.1.0`):
   of a resize to hundreds of megapixels (`MAX_INTERMEDIATE_PIXELS`, default 16 Mpx).
 - Inference server: the image creates `/models` for its own user, so hot-swaps work on a new
   named volume; an unwritable model directory is a clear error.
+- Inference server: a non-ASCII `Authorization` header is a 401 instead of a 500.
+- Inference server: a broken model or a `MODEL_SHA256` mismatch no longer stops the server (crash
+  loop under a restart policy); it starts unloaded, `/readyz` gives the reason, and a deploy
+  through `/admin/model` recovers it.
+- Inference server: decoding and inference run in a thread pool, so a slow image no longer
+  blocks `/healthz`, `/readyz` and other requests.
+- Inference server: `MAX_MODEL_BYTES` caps each file of a `POST /admin/model` upload, as documented;
+  the request as a whole was capped at `MAX_MODEL_BYTES` + 64 KiB, so a model close to the limit
+  plus its centroids was refused with 413. The admin key is checked before the body is read, so
+  a client without it gets a 401 and cannot make the server spool anything.
+
+### Changed
+
+- Inference server image: the healthcheck probes `/readyz` instead of `/healthz`; a server
+  without a usable model now shows as unhealthy.
 
 ### Added
 
 - Unknown config keys name the closest known key (`'bnd' (did you mean 'bind'?)`); keys a
   plugin's `config:` block does not know are logged as a warning instead of being dropped
   silently.
+- Inference server: a warning at start when `API_KEY` or `ADMIN_KEY` is unset.
 - Studio: unknown `studio.toml` sections and keys and unknown `STUDIO_*` variables are reported
   at start, with the section or name to use instead.
 - `docs/operations.md`: backup, restore and updating for the daemon, the model volume and the

@@ -40,7 +40,7 @@ import numpy as np
 from PIL import Image
 
 from .model import Classifier, _sha256
-from .preprocess import preprocess
+from .preprocess import ImageTooExtremeError, preprocess
 from .individuals import IndividualMatcher
 from .labels_de import species_de
 
@@ -393,6 +393,8 @@ async def classify(
         chw = preprocess(img, box, _input_size)  # type: ignore[arg-type]
     except HTTPException:
         raise
+    except ImageTooExtremeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001 — any decode/preprocess failure is a 400
         raise HTTPException(status_code=400, detail="invalid image") from exc
     want_embedding = embed == "1"
@@ -425,6 +427,8 @@ async def classify_bulletin(
     try:
         img = Image.open(io.BytesIO(raw))
         chw = preprocess(img, (0.0, 0.0, 1.0, 1.0), _input_size)  # type: ignore[arg-type]
+    except ImageTooExtremeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001 — any decode/preprocess failure is a 400
         raise HTTPException(status_code=400, detail="invalid image") from exc
 

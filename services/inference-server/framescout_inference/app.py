@@ -67,6 +67,12 @@ _matcher: IndividualMatcher | None = None
 # Why the server is not ready while `_classifier` is None; /readyz says it.
 _unloaded_reason = "no model loaded yet"
 log = logging.getLogger("framescout_inference")
+if not log.handlers:
+    # uvicorn configures only its own loggers; without a handler these lines
+    # would reach stderr without their level. Same layout as uvicorn's.
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("%(levelname)s:  %(message)s"))
+    log.addHandler(_handler)
 
 
 def _load() -> None:
@@ -123,9 +129,25 @@ def _sweep_incoming() -> None:
         pass
 
 
+def _warn_about_keys() -> None:
+    """Say at start what an unset key means — it is easy to miss that an
+    empty API_KEY switches authentication off."""
+    if _api_key is None:
+        log.warning(
+            "API_KEY is not set: POST / and POST /classify accept requests without a key. "
+            "Set API_KEY unless only trusted clients can reach this port."
+        )
+    if _admin_key is None:
+        log.warning(
+            "ADMIN_KEY is not set: POST /admin/model is disabled (503), so models "
+            "cannot be deployed to this server."
+        )
+
+
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     _sweep_incoming()
+    _warn_about_keys()
     _load()
     yield
 

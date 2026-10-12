@@ -65,6 +65,12 @@ exports to about 110 MB) with headroom; raise it for base-sized backbones
 above `MAX_INTERMEDIATE_PIXELS` (a 4000×1 strip, or a 1 px high bbox) is a
 400 — a 4K frame needs 0.09 Mpx.
 
+### Start-up warnings
+
+At start the server logs a warning when `API_KEY` is unset (`POST /` and
+`POST /classify` then accept requests without a key) and when `ADMIN_KEY`
+is unset (model deploys are disabled). Neither stops the server.
+
 ### Start without a usable model
 
 A missing, corrupt or wrongly pinned model does not stop the server: it

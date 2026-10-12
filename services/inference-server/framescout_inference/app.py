@@ -214,14 +214,27 @@ async def _read_capped(upload: UploadFile, limit: int = MAX_UPLOAD_BYTES) -> byt
     return buf
 
 
+def _same_secret(received: str, expected: str) -> bool:
+    """Constant-time comparison of a header value with the expected one.
+
+    On bytes, not str: `hmac.compare_digest` raises TypeError for a str with
+    non-ASCII characters, and uvicorn hands headers over latin-1 decoded,
+    so any client could turn an unauthenticated request into a 500.
+    `surrogateescape` keeps even malformed values comparable.
+    """
+    return hmac.compare_digest(
+        received.encode("utf-8", "surrogateescape"),
+        expected.encode("utf-8", "surrogateescape"),
+    )
+
+
 def _check_auth(authorization: str | None) -> None:
-    # `hmac.compare_digest` rather than `!=`: the comparison is against a
-    # secret. The TypeScript side gets this right (auth/token-file.ts uses
-    # `timingSafeEqual`); this did not.
+    # Constant-time rather than `!=`: the comparison is against a secret.
+    # The TypeScript side does the same (auth/token-file.ts uses
+    # `timingSafeEqual`).
     if _api_key is None:
         return
-    expected = f"Bearer {_api_key}"
-    if authorization is None or not hmac.compare_digest(authorization, expected):
+    if authorization is None or not _same_secret(authorization, f"Bearer {_api_key}"):
         raise HTTPException(status_code=401, detail="unauthorized")
 
 
@@ -230,8 +243,7 @@ def _check_admin(authorization: str | None) -> None:
     # disabled entirely (never allow unauthenticated swaps).
     if _admin_key is None:
         raise HTTPException(status_code=503, detail="admin disabled (ADMIN_KEY unset)")
-    expected = f"Bearer {_admin_key}"
-    if authorization is None or not hmac.compare_digest(authorization, expected):
+    if authorization is None or not _same_secret(authorization, f"Bearer {_admin_key}"):
         raise HTTPException(status_code=401, detail="unauthorized")
 
 

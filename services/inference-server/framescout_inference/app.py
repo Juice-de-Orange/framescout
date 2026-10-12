@@ -36,6 +36,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Form, Header, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
+import numpy as np
 from PIL import Image
 
 from .model import Classifier, _sha256
@@ -263,9 +264,14 @@ async def admin_put_model(
     authorization: str | None = Header(default=None),
 ) -> JSONResponse:
     """Atomically hot-swap the served model. The studio uploads the
-    freshly trained model.onnx + labels.json; we validate by loading a
-    Classifier from temp files *before* replacing the live one, so a bad
-    upload leaves the current model serving."""
+    freshly trained model.onnx + labels.json (+ centroids.json).
+
+    Two phases. First everything is read, loaded and checked from a staging
+    directory: the model must load, classify a probe image at the
+    configured INPUT_SIZE with one logit per label, and uploaded centroids
+    must contain at least one usable embedding. Only then are the files
+    promoted with `os.replace` and the in-memory pointers swapped, so any
+    failure leaves the served model, labels and centroids as they were."""
     global _classifier, _model_sha, _matcher
     _check_admin(authorization)
     model_path = os.environ.get("MODEL_PATH")
@@ -282,9 +288,14 @@ async def admin_put_model(
     incoming.mkdir(parents=True, exist_ok=True)
     tmp_model = incoming / "model.onnx"
     tmp_labels = incoming / "labels.json"
+    tmp_cent: Path | None = None
     try:
+        # ── Phase 1: read and validate everything; nothing live changes.
         await _save_capped(model, tmp_model, MAX_MODEL_BYTES, "MAX_MODEL_BYTES")
         await _save_capped(labels, tmp_labels, MAX_MODEL_BYTES, "MAX_MODEL_BYTES")
+        if centroids is not None and _centroids_path:
+            tmp_cent = incoming / "centroids.json"
+            await _save_capped(centroids, tmp_cent, MAX_MODEL_BYTES, "MAX_MODEL_BYTES")
         # Validate: this loads the ONNX (discovers outputs) + parses labels.
         try:
             candidate = Classifier(
@@ -294,22 +305,63 @@ async def admin_put_model(
             raise HTTPException(
                 status_code=400, detail=f"invalid model: {exc}"
             ) from exc
+        # Loading a graph never runs it: a model exported for another input
+        # size, or labels.json from another run, would pass the load and
+        # fail (or mislabel) on every real frame once live.
+        _probe(candidate)
+        # `from_path` degrades to "no individuals" instead of raising, so
+        # check the result: a file without one usable embedding would turn
+        # individual tagging off in production behind a 200.
+        candidate_matcher: IndividualMatcher | None = None
+        if tmp_cent is not None:
+            candidate_matcher = IndividualMatcher.from_path(str(tmp_cent))
+            if candidate_matcher.count == 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="invalid centroids: no usable individual embeddings",
+                )
         sha = _sha256(tmp_model)
-        # Promote atomically, then swap the in-memory pointer.
+
+        # ── Phase 2: promote atomically, then swap the in-memory pointers.
         os.replace(tmp_model, dest_model)
         os.replace(tmp_labels, dest_labels)
+        if tmp_cent is not None and _centroids_path:
+            os.replace(tmp_cent, Path(_centroids_path))
         _classifier = candidate
         _model_sha = sha
-        # Hot-swap individual centroids alongside the model when provided,
-        # so production individual-tagging tracks the freshly trained model.
-        if centroids is not None and _centroids_path:
-            tmp_cent = incoming / "centroids.json"
-            await _save_capped(centroids, tmp_cent, MAX_MODEL_BYTES, "MAX_MODEL_BYTES")
-            os.replace(tmp_cent, Path(_centroids_path))
-        _matcher = IndividualMatcher.from_path(_centroids_path)
+        # Without new centroids, re-read the file so a manually replaced one
+        # still takes effect.
+        _matcher = candidate_matcher or IndividualMatcher.from_path(_centroids_path)
         return JSONResponse(_model_info())
     finally:
         shutil.rmtree(incoming, ignore_errors=True)
+
+
+def _probe_image() -> Image.Image:
+    """A synthetic frame with some structure (a gradient), so the probe runs
+    the same decode-free preprocess path a real crop takes."""
+    ramp = np.linspace(0, 255, 64, dtype=np.uint8)
+    rgb = np.stack([np.tile(ramp, (48, 1))] * 3, axis=-1)
+    return Image.fromarray(rgb, "RGB")
+
+
+def _probe(candidate: Classifier) -> None:
+    """Classify one probe image with `candidate`; any failure is a 400."""
+    try:
+        chw = preprocess(_probe_image(), (0.0, 0.0, 1.0, 1.0), _input_size)
+        preds, _ = candidate.infer(chw, want_embedding=True, logit_scale=_logit_scale)
+    except Exception as exc:  # noqa: BLE001 — a model that cannot run is a 400
+        raise HTTPException(
+            status_code=400,
+            detail=f"model loads but the probe inference at INPUT_SIZE={_input_size} "
+            f"failed: {exc}",
+        ) from exc
+    if len(preds) != candidate.num_classes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"model has {len(preds)} outputs on the probe image but labels.json "
+            f"has {candidate.num_classes} labels",
+        )
 
 
 @app.post("/")

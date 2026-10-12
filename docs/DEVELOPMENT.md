@@ -5,7 +5,10 @@ commit style, PR checklist) live in [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 
 ## Prerequisites
 
-- Node.js ≥ 22.12 with Corepack (`corepack enable` activates the pinned pnpm 11)
+- Node.js ≥ 22.12 and pnpm at the version pinned in `packageManager` in `package.json` (pnpm 11).
+  Node 22 and 24 bundle Corepack: `corepack enable` activates that version. Node 25 and later ship
+  without Corepack: run `npm install -g corepack` first, or install the pinned pnpm directly from
+  the repository root with `npm install -g "$(node -p "require('./package.json').packageManager")"`
 - `ffmpeg` on `PATH` — without it the decode integration tests are skipped
 - Docker 24+ with Compose v2 for the container image and the examples
 - Python 3.11+ only for `training/`, `services/inference-server/` and `studio/`

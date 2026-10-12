@@ -19,19 +19,28 @@ Questions and ideas are welcome as a GitHub issue.
 
 ## Development setup
 
-Requirements: Node.js ≥ 22.12 with Corepack (pnpm 11), `ffmpeg` for the
+Requirements: Node.js ≥ 22.12 and pnpm at the version pinned in
+`packageManager` in `package.json` (pnpm 11), `ffmpeg` for the
 decode integration tests, Python 3.11+ only if you work on `training/`,
 `services/inference-server/` or `studio/`. The full walkthrough is in
 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 ```bash
-corepack enable
+corepack enable     # Node 22/24 bundle Corepack; on Node ≥ 25 see below
 pnpm install --frozen-lockfile
 pnpm build          # tsc -b over the workspace
 pnpm lint           # eslint
 pnpm typecheck
 pnpm test           # vitest
 pnpm e2e            # Playwright (run `pnpm e2e:install` once)
+```
+
+Node 25 and later ship without Corepack. Either install it first
+(`npm install -g corepack`, then `corepack enable`) or install the pinned
+pnpm directly from the repository root:
+
+```bash
+npm install -g "$(node -p "require('./package.json').packageManager")"
 ```
 
 Python sub-projects (each in its own virtualenv):

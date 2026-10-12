@@ -50,7 +50,7 @@
   "dependencies": {
     "@framescout/detector-deepfaune-http": "workspace:^",
     "@framescout/individual-recognition": "workspace:^",
-    "chokidar": "^4.0.1",
+    "chokidar": "^5.0.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {

@@ -37,7 +37,7 @@
     "@framescout/core": "workspace:^",
     "@framescout/detector-individual-embed": "workspace:^",
     "@framescout/plugin-api": "workspace:^",
-    "@inquirer/prompts": "^7.2.0",
+    "@inquirer/prompts": "^8.7.3",
     "commander": "^12.1.0",
     "ulid": "^2.3.0",
     "yaml": "^2.9.1",

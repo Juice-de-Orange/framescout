@@ -54,11 +54,13 @@ POST /admin/model   multipart: model=<onnx>, labels=<json>, centroids=<json>?  (
 | `INDIVIDUAL_THRESHOLD`    | minimum similarity for an individual tag (default 0.6)     |
 | `INDIVIDUAL_MARGIN`       | lead the best individual needs over the runner-up (default 0.05) |
 | `MAX_UPLOAD_BYTES`        | largest image upload (default 10 MiB)                      |
-| `MAX_MODEL_BYTES`         | largest `POST /admin/model` request (default 256 MiB)      |
+| `MAX_MODEL_BYTES`         | largest file in a `POST /admin/model` request (default 256 MiB) |
 | `MAX_INTERMEDIATE_PIXELS` | largest resize intermediate (default 16 000 000)           |
 
-Requests whose `Content-Length` is over `MAX_UPLOAD_BYTES` (`MAX_MODEL_BYTES`
-on `/admin/model`) plus 64 KiB are refused with 413 before the body is read.
+Requests whose `Content-Length` is over `MAX_UPLOAD_BYTES` plus 64 KiB are
+refused with 413 before the body is read. On `/admin/model` `MAX_MODEL_BYTES`
+applies to each file — model, labels and centroids — so that request may be
+up to three times `MAX_MODEL_BYTES` plus 64 KiB.
 `MAX_MODEL_BYTES` fits the trainer's default backbone (`convnextv2_tiny`
 exports to about 110 MB) with headroom; raise it for base-sized backbones
 (about 350 MB). An image whose aspect ratio would need a resize intermediate

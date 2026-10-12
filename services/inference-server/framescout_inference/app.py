@@ -184,6 +184,11 @@ MAX_MODEL_BYTES = int(os.environ.get("MAX_MODEL_BYTES", str(256 * 1024 * 1024)))
 
 _CHUNK = 1024 * 1024
 
+# POST /admin/model carries up to three files — model, labels, centroids —
+# and each may use the whole of MAX_MODEL_BYTES, so the request as a whole
+# may be up to three times that.
+ADMIN_MODEL_PARTS = 3
+
 # Allowance for the multipart envelope (boundaries, part headers, the small
 # form fields) on top of the payload caps above.
 MULTIPART_OVERHEAD = 64 * 1024
@@ -203,7 +208,8 @@ async def _body_limit(request: Request, call_next):  # type: ignore[no-untyped-d
     """
     if request.method in ("POST", "PUT", "PATCH"):
         if request.url.path == "/admin/model":
-            limit, setting = MAX_MODEL_BYTES, "MAX_MODEL_BYTES"
+            limit = MAX_MODEL_BYTES * ADMIN_MODEL_PARTS
+            setting = f"MAX_MODEL_BYTES (x{ADMIN_MODEL_PARTS}: model, labels, centroids)"
         else:
             limit, setting = MAX_UPLOAD_BYTES, "MAX_UPLOAD_BYTES"
         raw_length = request.headers.get("content-length")

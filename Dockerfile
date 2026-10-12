@@ -14,7 +14,7 @@
 # ─── Stage 1: deps ────────────────────────────────────────────────────
 # Resolve the entire pnpm workspace once. Heavy step; cached on
 # package.json + pnpm-lock.yaml changes.
-FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS deps
+FROM node:26-bookworm-slim@sha256:86f07bc9c5dce4578cf37e5a418b7bfc7f817cda25cde66e2b66e95ed86c4567 AS deps
 ENV PNPM_HOME=/pnpm \
     PATH=/pnpm:$PATH \
     CI=true
@@ -64,7 +64,7 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 # Runtime image: the pruned daemon tree plus ffmpeg (clip decoding) and
 # tini (PID 1 signal forwarding), running as a non-root user. No build
 # tooling, no pnpm.
-FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS runtime
+FROM node:26-bookworm-slim@sha256:86f07bc9c5dce4578cf37e5a418b7bfc7f817cda25cde66e2b66e95ed86c4567 AS runtime
 LABEL org.opencontainers.image.source="https://github.com/Juice-de-Orange/framescout" \
       org.opencontainers.image.description="Framescout daemon: wildlife-camera frame pipeline" \
       org.opencontainers.image.licenses="Apache-2.0"

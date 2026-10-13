@@ -483,7 +483,27 @@ async function runDetectorChain(
   timeoutMs: number,
 ): Promise<Detection[]> {
   let detections: Detection[] = [];
-  for (const entry of detectors) {
+  for (const [index, entry] of detectors.entries()) {
+    // An empty working set after the first detector ends the chain. Every
+    // later detector is an enricher of upstream detections, so it has
+    // nothing to work on — and an empty set is exactly what the
+    // MegaDetector privacy gate returns for a clip with a person in it.
+    // Calling the next detector anyway let a stage-2 classifier that
+    // looked at whole frames turn the person clip back into an `animal`
+    // observation, thumbnail included. The same holds when stage 1 failed
+    // or timed out: without its verdict nobody has checked the clip for
+    // people, so the event is not handed on.
+    if (index > 0 && detections.length === 0) {
+      log.debug(
+        {
+          event: 'pipeline.detector_chain_ended',
+          eventId: event.eventId,
+          skipped: detectors.slice(index).map((d) => d.instanceId),
+        },
+        'no detections left; remaining detectors not called',
+      );
+      break;
+    }
     const inferEnd = metrics.detectorInferenceSeconds.startTimer({
       detector: entry.instanceId,
     });
@@ -519,7 +539,8 @@ async function runDetectorChain(
       // Every stage-2 detector in this repo is an *enricher*: it walks
       // `previousDetections` and returns a modified copy of that same set —
       // passthrough for labels it does not handle, enriched for the ones it
-      // does (see detector-classify-http and detector-individual-embed).
+      // does (see detector-classify-http, detector-deepfaune-http and
+      // detector-individual-embed).
       // Appending therefore produced `[A, A']`: the raw detection *and* its
       // enriched twin, sharing one bbox.
       //

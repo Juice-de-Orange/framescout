@@ -15,6 +15,7 @@ import {
   type FramescoutMetrics,
 } from '../src/metrics.js';
 import { createRootLogger } from '../src/logger.js';
+import { ObservationRing } from '../src/observation-ring.js';
 import { mergeAsyncIterables } from '../src/pipeline/merge.js';
 import {
   buildObservation,
@@ -867,5 +868,117 @@ describe('detector chain — stage 2 enriches instead of duplicating', () => {
     expect(payload.allDetections).toHaveLength(1);
     expect(payload.allDetections[0]!.label).toBe('cat');
     expect(payload.observation.scientificName).toBe('Felis catus');
+  });
+});
+
+/**
+ * Regression: the person privacy gate.
+ *
+ * MegaDetector's gate returns an empty list for a clip with a person in it.
+ * The host used to call the next detector anyway, and DeepFaune — which
+ * classified whole frames and ignored `previousDetections` — turned the
+ * person clip back into an `animal` observation with a thumbnail, delivered
+ * to every sink. An empty working set after stage 1 must end the chain.
+ */
+class WholeFrameClassifier implements Detector {
+  calls = 0;
+  init(): Promise<void> {
+    return Promise.resolve();
+  }
+  start(): Promise<void> {
+    return Promise.resolve();
+  }
+  stop(): Promise<void> {
+    return Promise.resolve();
+  }
+  /** Same shape as the old detector-deepfaune-http: one detection per frame. */
+  detect(input: DetectorInput): Promise<readonly Detection[]> {
+    this.calls += 1;
+    return Promise.resolve(
+      input.frames.map(() => ({
+        label: 'red_deer',
+        confidence: 0.88,
+        modelName: 'deepfaune',
+        modelVersion: 'v1.3',
+      })),
+    );
+  }
+}
+
+describe('detector chain — privacy gate', () => {
+  let r: Rig;
+  beforeEach(() => {
+    r = newRig();
+  });
+  afterEach(() => {
+    r.abortController.abort();
+  });
+
+  async function runGated(stage1: Detector, emitBlankObservations: boolean) {
+    const source = new MockSource([makeEvent('person')]);
+    const stage2 = new WholeFrameClassifier();
+    const sink = new RecordingSink();
+    const ring = new ObservationRing(16);
+    const wrapped = new BoundedSinkWrapper({
+      instanceId: 'mock',
+      sink,
+      policy: 'drop-oldest',
+      logger: r.logger,
+      metrics: r.metrics,
+    });
+
+    await runPipeline({
+      sources: [
+        { instanceId: 'src', source, emitBlankObservations, topNFrames: 1 },
+      ],
+      detectors: [
+        { instanceId: 'megadetector', detector: stage1 },
+        { instanceId: 'deepfaune', detector: stage2 },
+      ],
+      sinks: [wrapped],
+      logger: r.logger,
+      metrics: r.metrics,
+      abortSignal: r.abortController.signal,
+      exitOnIdleSources: true,
+      decode: decodeStub,
+      score: scoreStub,
+      observationRing: ring,
+    });
+    return { sink, ring, stage2 };
+  }
+
+  it('a privacy skip upstream ends the event: no stage 2, no observation, no thumbnail', async () => {
+    // MegaDetector saw a person: the gate returns no detections at all.
+    const { sink, ring, stage2 } = await runGated(new MockDetector([]), false);
+
+    expect(sink.delivered).toHaveLength(0);
+    expect(stage2.calls).toBe(0);
+    expect(ring.size()).toBe(0);
+    const metricLines = await r.registry.metrics();
+    expect(metricLines).toMatch(/outcome="dropped_blank"\} 1/);
+    expect(metricLines).not.toMatch(/outcome="emitted"/);
+  });
+
+  it('with emitBlankObservations the skipped event stays a blank, never an animal', async () => {
+    const { sink, stage2 } = await runGated(new MockDetector([]), true);
+
+    expect(sink.delivered).toHaveLength(1);
+    expect(sink.delivered[0]!.observation.observationType).toBe('blank');
+    expect(stage2.calls).toBe(0);
+    expect(sink.delivered[0]!.allDetections).toHaveLength(0);
+  });
+
+  it('a failed stage 1 does not hand the clip to stage 2 unchecked', async () => {
+    const failing: Detector = {
+      init: () => Promise.resolve(),
+      start: () => Promise.resolve(),
+      stop: () => Promise.resolve(),
+      detect: () => Promise.reject(new Error('megadetector down')),
+    };
+    const { sink, ring, stage2 } = await runGated(failing, false);
+
+    expect(sink.delivered).toHaveLength(0);
+    expect(stage2.calls).toBe(0);
+    expect(ring.size()).toBe(0);
   });
 });

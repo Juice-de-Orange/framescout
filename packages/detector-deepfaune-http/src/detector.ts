@@ -32,6 +32,9 @@ interface DeepfauneResponse {
 
 export const DEEPFAUNE_MODEL_NAME = 'deepfaune';
 
+/** The upstream (MegaDetector) label this detector names the species of. */
+const ENRICHED_LABEL = 'animal';
+
 export class DeepfauneHttpDetector implements Detector {
   private apiKey: string | undefined;
 
@@ -63,14 +66,32 @@ export class DeepfauneHttpDetector implements Detector {
   async start(): Promise<void> {}
   async stop(): Promise<void> {}
 
+  /**
+   * Stage-2 enricher: names the species of the upstream `animal`
+   * detections (MegaDetector's) and returns them with their bbox intact.
+   * Everything else passes through untouched, and without an upstream
+   * `animal` no frame is sent at all — so a clip MegaDetector's person
+   * gate emptied, or one with nothing in it, is never classified.
+   *
+   * DeepFaune classifies whole frames and a detection does not say which
+   * frame it came from, so the frames are classified once per event and
+   * the most confident prediction ≥ `minConfidence` names every animal.
+   * Below that threshold the upstream detection is kept as it is.
+   */
   async detect(
     input: DetectorInput,
     signal: AbortSignal,
   ): Promise<readonly Detection[]> {
-    const results: Detection[] = [];
+    if (signal.aborted) return [];
+    const upstream = input.previousDetections ?? [];
+    if (!upstream.some((det) => det.label === ENRICHED_LABEL)) {
+      return upstream;
+    }
 
+    let top: DeepfauneResponse['predictions'][number] | undefined;
     for (const frame of input.frames) {
-      if (signal.aborted) break;
+      // The host keeps the upstream set when an enricher returns nothing.
+      if (signal.aborted) return [];
 
       let resp: DeepfauneResponse;
       try {
@@ -81,28 +102,34 @@ export class DeepfauneHttpDetector implements Detector {
       }
       this.ctx.metric('inferences', 1, { outcome: 'success' });
 
-      // Pick the top prediction above minConfidence per frame.
-      const top = topPrediction(resp.predictions, this.config.minConfidence);
-      if (!top) continue;
-
-      const tax = lookupTaxonomy(top.class, this.config.taxonomyOverrides);
-      const extra: Record<string, unknown> = {};
-      if (tax) {
-        extra['scientificName'] = tax.scientificName;
-        extra['taxonRank'] = tax.taxonRank;
-        if (tax.germanName !== undefined) extra['germanName'] = tax.germanName;
+      // Pick the top prediction above minConfidence across all frames.
+      const frameTop = topPrediction(resp.predictions, this.config.minConfidence);
+      if (frameTop && (!top || frameTop.confidence > top.confidence)) {
+        top = frameTop;
       }
+    }
+    if (!top) return upstream;
 
-      results.push({
+    const tax = lookupTaxonomy(top.class, this.config.taxonomyOverrides);
+    const taxonomy: Record<string, unknown> = {};
+    if (tax) {
+      taxonomy['scientificName'] = tax.scientificName;
+      taxonomy['taxonRank'] = tax.taxonRank;
+      if (tax.germanName !== undefined) taxonomy['germanName'] = tax.germanName;
+    }
+
+    return upstream.map((det) => {
+      if (det.label !== ENRICHED_LABEL) return det;
+      const extra: Record<string, unknown> = { ...(det.extra ?? {}), ...taxonomy };
+      return {
         label: top.class,
         confidence: top.confidence,
+        ...(det.bbox !== undefined && { bbox: det.bbox }),
         modelName: DEEPFAUNE_MODEL_NAME,
         modelVersion: this.config.modelVersion,
         ...(Object.keys(extra).length > 0 && { extra }),
-      });
-    }
-
-    return results;
+      };
+    });
   }
 
   private async requestFrame(

@@ -1,8 +1,12 @@
 # Detector: `@framescout/detector-deepfaune-http`
 
-POSTs each animal-cropped frame to a DeepFaune v1.3 HTTP service and
-emits a species `Detection` with the scientific name + Linnean rank
-attached via the bundled taxonomy table.
+Stage-2 detector: names the species of the `animal` detections that
+MegaDetector found. It POSTs the event's frames to a DeepFaune v1.3 HTTP
+service and returns MegaDetector's detections with the species label,
+DeepFaune's confidence and the scientific name + Linnean rank from the
+bundled taxonomy table attached — **bounding box kept**, so
+`detector-individual-embed` can crop after it. Put it after
+`detector-megadetector-http` in `detectors:`.
 
 > **Model weights are non-commercial.** The plugin's TypeScript code
 > is Apache-2.0; the DeepFaune V1.3 weights distributed by the
@@ -37,9 +41,15 @@ Content-Type: application/json
 }
 ```
 
-The plugin selects the top prediction whose `confidence ≥
-minConfidence`, looks up `class` in the bundled taxonomy, and emits
-one `Detection` per frame.
+The plugin only calls the service when the upstream detectors handed it
+at least one `animal` detection; a clip MegaDetector found empty, or one
+its person gate dropped, is never sent. DeepFaune classifies whole frames
+and a detection does not say which frame it came from, so the plugin
+classifies each frame of the event once, selects the most confident
+prediction with `confidence ≥ minConfidence`, looks up `class` in the
+bundled taxonomy and applies it to every upstream `animal` detection.
+Other labels (`vehicle`, …) pass through unchanged. When no prediction
+reaches `minConfidence`, the `animal` detection is kept as it is.
 
 ## Configuration
 
@@ -88,7 +98,7 @@ to a `scientificName` + Linnean `taxonRank`. The full list is in
 | … (28 more)        | …                     | …         |
 
 When a label isn't in the table and isn't overridden, the plugin still
-emits a `Detection` (with the raw `label` and `confidence`); only the
+labels the detection (with the raw `label` and `confidence`); only the
 `scientificName` / `taxonRank` extra fields are left undefined. The
 observation will then have `observationType: 'animal'` but no taxon
 metadata — Camtrap-DP serialisations will write the label string into

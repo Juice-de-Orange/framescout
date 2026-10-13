@@ -261,6 +261,13 @@ in YAML-declaration order, and each Detector can read upstream results
 from `input.previousDetections`. A species classifier reads MegaDetector's
 bounding boxes and crops accordingly.
 
+A detector's return value replaces the working set. Stage-2 detectors are
+*enrichers*: they return the upstream set with the labels they handle
+enriched (species, individual) and everything else passed through. Once the
+working set is empty, the host calls no later detector for that event — a
+stage-2 detector has nothing to enrich, and an empty set is what a privacy
+gate returns (§7.3).
+
 ```typescript
 // ──────────── Sink ──────────────────────────────────────────────────────
 
@@ -619,9 +626,11 @@ can see what was rejected). `count: 0`.
 **Person-skip privacy gate.** Privacy filtering happens **inside Detector
 plugins**, not in the orchestrator. The MegaDetector plugin exposes
 `skipFramesWithPersonAbove: 0.15` and returns an empty detection list
-for any frame where a person is detected above that threshold; the
-upstream pipeline then either emits a blank Observation (if opted in) or
-silently skips (default). The skip is logged as
+for any frame where a person is detected above that threshold. The
+orchestrator calls no later detector once the working set is empty, so a
+species classifier further down the chain never sees the event; the
+pipeline then either emits a blank Observation (if opted in) or silently
+skips (default). The skip is logged as
 `event: 'detector.privacy_skip'`.
 
 This split keeps the core agnostic to label semantics — only Detectors

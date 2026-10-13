@@ -1,6 +1,6 @@
 {
   "name": "@framescout/detector-individual-embed",
-  "version": "0.0.0",
+  "version": "0.2.0",
   "description": "Framescout Detector plugin: name your animals (cats, etc.) and recognise them in real-time via pre-trained vision embeddings + per-individual centroid + cosine similarity. Two-stage chain after a species classifier.",
   "license": "Apache-2.0",
   "author": "Max Oberrauch",

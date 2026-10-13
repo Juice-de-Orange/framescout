@@ -68,7 +68,7 @@ docker build -t framescout:dev .
 docker compose up --build       # uses ./config.yaml and ./.env
 ```
 
-The image is based on `node:22-bookworm-slim` (Debian, glibc — `onnxruntime-node`, used by
+The image is based on `node:26-bookworm-slim` (Debian, glibc — `onnxruntime-node`, used by
 `detector-individual-embed`, has no musl build) and is about 1.2 GB as listed by `docker images`:
 roughly 475 MB of that is Debian's `ffmpeg` with its codec libraries, the rest Node, the daemon
 tree and the CPU build of ONNX Runtime. It is a complete runtime, not a minimal one.

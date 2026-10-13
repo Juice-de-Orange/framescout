@@ -226,6 +226,13 @@ closure. `DetectorInput.previousDetections` carries the upstream
 detector's output (v0.1 chains in YAML declaration order). Use
 `signal` for per-call timeouts.
 
+Your return value replaces the working set. A stage-2 detector is an
+enricher: return the upstream set with the detections you handle
+enriched and the rest passed through. Once the working set is empty the
+host does not call later detectors for that event — that is how a
+privacy gate (return `[]`) keeps the event away from everything after
+it.
+
 ### `Sink`
 
 ```ts

@@ -3,6 +3,7 @@ import { once } from 'node:events';
 import { afterEach, describe, expect, it } from 'vitest';
 import type {
   CaptureEvent,
+  Detection,
   Frame,
   Logger,
   PluginContext,
@@ -50,6 +51,15 @@ const EVENT: CaptureEvent = {
   meta: {},
 };
 
+/** What MegaDetector hands on: a localised but unnamed animal. */
+const ANIMAL: Detection = {
+  label: 'animal',
+  confidence: 0.94,
+  bbox: [0.1, 0.2, 0.3, 0.4],
+  modelName: 'megadetector',
+  modelVersion: 'v6.0',
+};
+
 interface RigOptions {
   status?: number;
   body?: unknown;
@@ -60,9 +70,12 @@ async function startServer(opts: RigOptions = {}): Promise<{
   server: Server;
   url: string;
   authHeader: () => string | undefined;
+  requests: () => number;
 }> {
   let lastAuth: string | undefined;
+  let requests = 0;
   const server = createServer((req, res) => {
+    requests += 1;
     lastAuth = req.headers.authorization;
     const send = (): void => {
       const status = opts.status ?? 200;
@@ -84,6 +97,7 @@ async function startServer(opts: RigOptions = {}): Promise<{
     server,
     url: `http://127.0.0.1:${port}`,
     authHeader: () => lastAuth,
+    requests: () => requests,
   };
 }
 
@@ -121,7 +135,7 @@ describe('DeepfauneHttpDetector', () => {
     );
     await det.init();
     const out = await det.detect(
-      { event: EVENT, frames: [FRAME] },
+      { event: EVENT, frames: [FRAME], previousDetections: [ANIMAL] },
       new AbortController().signal,
     );
     expect(out).toHaveLength(1);
@@ -134,7 +148,7 @@ describe('DeepfauneHttpDetector', () => {
     expect(out[0]!.extra?.['germanName']).toBe('Wildschwein');
   });
 
-  it('returns no detection when every prediction is below minConfidence', async () => {
+  it('keeps the upstream animal unchanged when every prediction is below minConfidence', async () => {
     rig = await startServer({
       body: { predictions: [{ class: 'wild_boar', confidence: 0.1 }] },
     });
@@ -150,10 +164,10 @@ describe('DeepfauneHttpDetector', () => {
     );
     await det.init();
     const out = await det.detect(
-      { event: EVENT, frames: [FRAME] },
+      { event: EVENT, frames: [FRAME], previousDetections: [ANIMAL] },
       new AbortController().signal,
     );
-    expect(out).toHaveLength(0);
+    expect(out).toEqual([ANIMAL]);
   });
 
   it('applies taxonomyOverrides from config', async () => {
@@ -179,7 +193,7 @@ describe('DeepfauneHttpDetector', () => {
     );
     await det.init();
     const out = await det.detect(
-      { event: EVENT, frames: [FRAME] },
+      { event: EVENT, frames: [FRAME], previousDetections: [ANIMAL] },
       new AbortController().signal,
     );
     expect(out[0]!.extra?.['scientificName']).toBe('Critterus localus');
@@ -201,7 +215,7 @@ describe('DeepfauneHttpDetector', () => {
     );
     await det.init();
     const out = await det.detect(
-      { event: EVENT, frames: [FRAME] },
+      { event: EVENT, frames: [FRAME], previousDetections: [ANIMAL] },
       new AbortController().signal,
     );
     expect(out).toHaveLength(1);
@@ -225,11 +239,93 @@ describe('DeepfauneHttpDetector', () => {
     );
     await det.init();
     await det.detect(
-      { event: EVENT, frames: [FRAME] },
+      { event: EVENT, frames: [FRAME], previousDetections: [ANIMAL] },
       new AbortController().signal,
     );
     expect(rig.authHeader()).toBe('Bearer sek-rit');
     delete process.env['__DF_API_KEY__'];
+  });
+
+  it('enriches only upstream animal detections and keeps their bbox', async () => {
+    rig = await startServer({
+      body: { predictions: [{ class: 'red_deer', confidence: 0.88 }] },
+    });
+    const det = new DeepfauneHttpDetector(
+      {
+        endpoint: rig.url,
+        modelVersion: 'v1.3',
+        minConfidence: 0.4,
+        taxonomyOverrides: {},
+        timeoutMs: 5_000,
+      },
+      fakeCtx(),
+    );
+    await det.init();
+    const vehicle: Detection = {
+      label: 'vehicle',
+      confidence: 0.7,
+      bbox: [0.5, 0.5, 0.2, 0.2],
+      modelName: 'megadetector',
+      modelVersion: 'v6.0',
+    };
+    const out = await det.detect(
+      {
+        event: EVENT,
+        frames: [FRAME, FRAME],
+        previousDetections: [ANIMAL, vehicle],
+      },
+      new AbortController().signal,
+    );
+    // One output per upstream detection — not one per frame.
+    expect(out).toHaveLength(2);
+    expect(out[0]).toMatchObject({
+      label: 'red_deer',
+      confidence: 0.88,
+      bbox: [0.1, 0.2, 0.3, 0.4],
+      modelName: 'deepfaune',
+      modelVersion: 'v1.3',
+    });
+    expect(out[0]!.extra?.['scientificName']).toBe('Cervus elaphus');
+    // Labels DeepFaune does not handle pass through untouched.
+    expect(out[1]).toBe(vehicle);
+  });
+
+  it('classifies nothing when upstream has no animal (privacy gate, empty frame)', async () => {
+    rig = await startServer({
+      body: { predictions: [{ class: 'red_deer', confidence: 0.88 }] },
+    });
+    const det = new DeepfauneHttpDetector(
+      {
+        endpoint: rig.url,
+        modelVersion: 'v1.3',
+        minConfidence: 0.4,
+        taxonomyOverrides: {},
+        timeoutMs: 5_000,
+      },
+      fakeCtx(),
+    );
+    await det.init();
+    const person: Detection = {
+      label: 'person',
+      confidence: 0.91,
+      bbox: [0.4, 0.1, 0.2, 0.8],
+      modelName: 'megadetector',
+      modelVersion: 'v6.0',
+    };
+    const signal = new AbortController().signal;
+
+    expect(
+      await det.detect({ event: EVENT, frames: [FRAME], previousDetections: [] }, signal),
+    ).toEqual([]);
+    expect(await det.detect({ event: EVENT, frames: [FRAME] }, signal)).toEqual([]);
+    expect(
+      await det.detect(
+        { event: EVENT, frames: [FRAME], previousDetections: [person] },
+        signal,
+      ),
+    ).toEqual([person]);
+    // No frame of these events was sent to the classifier.
+    expect(rig.requests()).toBe(0);
   });
 
   it('rejects on HTTP 5xx', async () => {
@@ -246,7 +342,7 @@ describe('DeepfauneHttpDetector', () => {
     );
     await det.init();
     await expect(
-      det.detect({ event: EVENT, frames: [FRAME] }, new AbortController().signal),
+      det.detect({ event: EVENT, frames: [FRAME], previousDetections: [ANIMAL] }, new AbortController().signal),
     ).rejects.toThrow(/502/);
   });
 
@@ -264,7 +360,7 @@ describe('DeepfauneHttpDetector', () => {
     );
     await det.init();
     await expect(
-      det.detect({ event: EVENT, frames: [FRAME] }, new AbortController().signal),
+      det.detect({ event: EVENT, frames: [FRAME], previousDetections: [ANIMAL] }, new AbortController().signal),
     ).rejects.toThrow(/malformed/);
   });
 });

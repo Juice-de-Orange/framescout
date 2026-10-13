@@ -5,10 +5,10 @@ import { useEffect, useRef, useState } from 'preact/hooks';
  * language services chunk is ~1.5 MB pre-gzip — loaded only when
  * /ui/config is visited so the initial bundle stays small.
  *
- * Schema-aware autocomplete via monaco-yaml is wired through the
- * `/api/plugins/schemas` endpoint exposed in v0.2 — operators get
- * tab-completion for every detector/source/sink schema declared by
- * a loaded plugin.
+ * Syntax highlighting and structural editing only: schema-aware
+ * autocomplete and inline validation (monaco-yaml against
+ * `/api/plugins/schemas`) are not wired yet. The config page's
+ * Validate button checks the YAML against the daemon's schema.
  *
  * Falls back to a textarea while the dynamic import resolves so the
  * UI never shows a blank box (slow networks, monaco fetch failure).
@@ -47,15 +47,23 @@ export function MonacoYamlEditor({
     let cancelled = false;
     void (async () => {
       try {
-        const monaco = await import('monaco-editor');
+        const [monaco, { default: EditorWorker }] = await Promise.all([
+          import('monaco-editor'),
+          import('monaco-editor/editor/editor.worker?worker'),
+        ]);
         if (cancelled) return;
         if (containerRef.current === null) return;
-        // Bare worker config — Monaco falls back to running the
-        // language service on the main thread when no worker is
-        // configured, which is fine for our ~100-line config files.
-        // Full worker-based YAML language services (schema-aware
-        // autocomplete, inline validation) land as a follow-up; this
-        // sprint ships syntax highlighting + structural editing only.
+        // Monaco runs its editor services (word-based suggestions, links,
+        // diff) in a web worker it cannot locate on its own once Vite has
+        // bundled it — without this it logs "Failed to load worker script
+        // for label: editorWorkerService" and throws in the console. YAML
+        // highlighting is a main-thread tokenizer and needs no worker of
+        // its own. Schema-aware YAML language services (autocomplete,
+        // inline validation) are a follow-up; validation is the Validate
+        // button, which runs the daemon's own config check.
+        globalThis.MonacoEnvironment = {
+          getWorker: () => new EditorWorker(),
+        };
         const editor = monaco.editor.create(containerRef.current, {
           value: valueRef.current,
           language: 'yaml',

@@ -196,15 +196,17 @@ Three views, one route, switched by sub-path:
   timestamp (from ObservationRing lookup), Edit / Delete actions.
 - `/ui/individuals/new` — form: name input, species dropdown (`cat`
   hard-coded for MVP; future: pulled from any detector's known labels),
-  drag-drop photo uploader (multi-file), Save button. POST triggers
-  `/api/individuals` with multipart.
+  Save button. Save POSTs `{name, species}` as JSON to
+  `/api/individuals`; reference photos are added afterwards on the
+  detail view.
 - `/ui/individuals/:name` — detail view. Photo gallery with delete-per-
   photo, **threshold slider** with explicit "use global default" state
   (slider initially un-set → reads from
   `detector.similarityThreshold`; first drag persists to
-  `manifest.json` and shows a "revert to global" button), `last 50
-  detections` list pulled from a new `/api/individuals/:name/recent`
-  endpoint, manual "mark as false positive" action that moves the
+  `manifest.json` and shows a "revert to global" button), drag-drop
+  photo uploader (multi-file, one request per photo) and a recompute
+  of the centroid. *Planned, not implemented:* a `last 50 detections`
+  list and a manual "mark as false positive" action that moves the
   offending detection's thumbnail into `unknown/photos/` to sharpen
   the negative anchor.
 
@@ -225,19 +227,25 @@ affecting Lizzy).
 
 ### 4.3 API surface (additions)
 
-| Method | Path                                  | Purpose                              | Auth |
-|--------|---------------------------------------|--------------------------------------|------|
-| GET    | `/api/individuals`                    | list all + metadata                  | yes  |
-| POST   | `/api/individuals`                    | create new (multipart: name, photos) | yes  |
-| GET    | `/api/individuals/:name`              | detail incl. centroid metadata       | yes  |
-| DELETE | `/api/individuals/:name`              | remove (deletes dir + reloads)       | yes  |
-| POST   | `/api/individuals/:name/photos`       | add more reference photos            | yes  |
-| DELETE | `/api/individuals/:name/photos/:file` | remove one reference photo           | yes  |
-| GET    | `/api/individuals/:name/recent`       | last N detections from ring          | yes  |
-| POST   | `/api/individuals/:name/mark-fp`      | move detection-thumb into unknown/   | yes  |
+| Method | Path                                  | Purpose                                                                 | Auth |
+|--------|---------------------------------------|-------------------------------------------------------------------------|------|
+| GET    | `/api/individuals`                    | list all + metadata                                                     | yes  |
+| POST   | `/api/individuals`                    | create an empty individual — JSON `{name, species, thresholdOverride?}` | yes  |
+| GET    | `/api/individuals/:name`              | detail incl. centroid metadata                                          | yes  |
+| DELETE | `/api/individuals/:name`              | remove (deletes dir + reloads)                                          | yes  |
+| POST   | `/api/individuals/:name/photos`       | add ONE reference photo — raw body, `Content-Type: image/jpeg` (or `image/png`), ≤ 20 MB | yes  |
+| DELETE | `/api/individuals/:name/photos/:file` | remove one reference photo                                              | yes  |
+| POST   | `/api/individuals/:name/recompute`    | re-embed the photos and write the centroid                              | yes  |
+| POST   | `/api/individuals/:name/threshold`    | set or clear the override — JSON `{threshold: number \| null}`         | yes  |
 
-All requests guarded by the existing bearer-token + Origin/Host CSRF
-defences (FOUNDATION §6).
+Creating an individual from scripts is therefore three steps: `POST
+/api/individuals` with `{name, species}`, one `POST …/photos` per
+photo, then `POST …/recompute` — the individual only matches once its
+centroid exists.
+
+All requests need the UI session cookie (`POST /api/auth/login` with
+`{token}`); state-changing requests are also checked against the
+Origin/Host allow-lists (FOUNDATION §6).
 
 ### 4.4 Hot reload
 

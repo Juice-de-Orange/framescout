@@ -67,7 +67,9 @@ detectors:
 
 If **any** frame in a `CaptureEvent` contains a `person` detection
 with confidence ≥ `skipFramesWithPersonAbove`, the detector returns
-an empty list for the whole event. The pipeline then:
+an empty list for the whole event. No later detector in the chain
+(DeepFaune, classify-http, individual-embed) is called for that event,
+and the pipeline then:
 
 - Skips the event silently when the Source's
   `emitBlankObservations: false` (the default).

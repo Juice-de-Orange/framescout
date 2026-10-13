@@ -47,6 +47,12 @@ export interface DetectorInput {
  * Returning an empty array while `previousDetections` was non-empty is
  * treated as "no opinion" — the host keeps the upstream set, since that is
  * what an aborted `detect()` returns.
+ *
+ * Once the working set is empty after a detector, the host calls no later
+ * detector for that event: a stage-2 detector only ever sees a non-empty
+ * `previousDetections`. An empty set is what a privacy gate returns (the
+ * MegaDetector plugin's person gate), so no later detector can turn a
+ * gated event back into an observation.
  */
 export interface Detector extends PluginLifecycle {
   detect(

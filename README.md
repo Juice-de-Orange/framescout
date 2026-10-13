@@ -8,7 +8,7 @@
 [![python-ci](https://github.com/Juice-de-Orange/framescout/actions/workflows/python-ci.yml/badge.svg)](https://github.com/Juice-de-Orange/framescout/actions/workflows/python-ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-![Framescout operator UI — configuration editor with live validation](docs/media/operator-ui-config.png)
+![Framescout operator UI — configuration editor with Validate and Save & Restart buttons](docs/media/operator-ui-config.png)
 
 ## Why
 
@@ -122,10 +122,10 @@ scope; until then build from source as shown above.
 
 ## Tech stack
 
-TypeScript (Node 22, strict ESM) in a pnpm monorepo · zod · pino · prom-client · sharp + ffmpeg ·
-Preact + Vite operator UI with Monaco · Astro Starlight docs · Vitest + Playwright ·
-Python 3.11 FastAPI + onnxruntime inference server · PyTorch/timm trainer · Docker multi-stage
-build · GitHub Actions with release-please, cosign and SBOMs.
+TypeScript (strict ESM; Node ≥ 22.12, the container image runs Node 26) in a pnpm monorepo · zod ·
+pino · prom-client · sharp + ffmpeg · Preact + Vite operator UI with Monaco · Astro Starlight docs ·
+Vitest + Playwright · Python 3.11 FastAPI + onnxruntime inference server · PyTorch/timm trainer ·
+Docker multi-stage build · GitHub Actions with release-please, cosign and SBOMs.
 
 ## Documentation
 

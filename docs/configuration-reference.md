@@ -140,7 +140,9 @@ populate the `deployments.csv` table. Each entry:
 Detectors run in **YAML declaration order** in v0.1. Each receives
 the previous detector's output via `DetectorInput.previousDetections`
 (see ARCHITECTURE.md §5.3); chain DAGs with explicit `chainAfter`
-arrive in v0.2.
+arrive in v0.2. Once a detector leaves no detections (nothing found, the
+MegaDetector person gate fired, or the first detector failed), the
+detectors after it are not called for that event.
 
 #### `@framescout/detector-individual-embed` (v0.2.x)
 

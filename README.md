@@ -10,6 +10,8 @@
 
 ![Framescout operator UI — configuration editor with Validate and Save & Restart buttons](docs/media/operator-ui-config.png)
 
+Built with AI assistance.
+
 ## Why
 
 Consumer camera hubs (Reolink Hub Mini, RLN-series NVRs, …) record motion clips, and the
@@ -102,9 +104,10 @@ Then open <http://localhost:9090/ui> and log in with the token the daemon genera
   on the host and `docker compose restart`, or mount a writable config directory as described in
   [operator UI → saving from the UI](docs/operator-ui.md#saving-from-the-ui-in-the-hardened-compose).
 
-No image or npm package is published yet. From the first release on, the prebuilt multi-arch image
-is `ghcr.io/juice-de-orange/framescout` and the plugins are published under the `@framescout` npm
-scope; until then build from source as shown above.
+**Not on npm or GHCR yet.** No release is tagged, so there is no prebuilt image and no npm package
+yet — build from source as shown above. From the first release on, the multi-arch image will be
+`ghcr.io/juice-de-orange/framescout` and the plugins will be published under the `@framescout` npm
+scope.
 
 ## Built-in plugins
 
@@ -124,7 +127,7 @@ scope; until then build from source as shown above.
 
 TypeScript (strict ESM; Node ≥ 22.12, the container image runs Node 26) in a pnpm monorepo · zod ·
 pino · prom-client · sharp + ffmpeg · Preact + Vite operator UI with Monaco · Astro Starlight docs ·
-Vitest + Playwright · Python 3.11 FastAPI + onnxruntime inference server · PyTorch/timm trainer ·
+Vitest + Playwright · Python (≥ 3.11) FastAPI + onnxruntime inference server · PyTorch/timm trainer ·
 Docker multi-stage build · GitHub Actions with release-please, cosign and SBOMs.
 
 ## Documentation
@@ -163,13 +166,14 @@ Project:
 
 ## Status & roadmap
 
-Pre-1.0 and under active development; `v0.2.0` is the first public release. The plugin API is
+Pre-1.0 and under active development. No release is tagged yet; the first public release is
+planned as `v0.2.0` (see [CHANGELOG.md](CHANGELOG.md)). The plugin API is
 frozen at `0.1` until the next planned bump (hot-reload via `reconfigure()`, v0.3). Next up:
 local ONNX inference in the daemon, Camtrap DP / GBIF export, more sources (ONVIF, UniFi Protect,
 Frigate events) — see [docs/ROADMAP.md](docs/ROADMAP.md) and the
 [issues](https://github.com/Juice-de-Orange/framescout/issues).
 
-**What has been verified.** Before the release, the documented setup was run twice from a fresh
+**What has been verified.** Ahead of the first release, the documented setup was run twice from a fresh
 clone, following the README and quickstart literally: image build, quick start, and the full flow
 clip → ffmpeg → detector → observation → sinks, with individual recognition (pinned
 `dinov2-small`), the operator UI and the CLI. Those runs used a *simulated* Reolink hub and a
@@ -196,14 +200,6 @@ Contributions are welcome — start with [CONTRIBUTING.md](CONTRIBUTING.md) and 
 [`good first issue`](https://github.com/Juice-de-Orange/framescout/labels/good%20first%20issue).
 Security reports: see [SECURITY.md](SECURITY.md). This project follows the
 [Contributor Covenant](CODE_OF_CONDUCT.md).
-
-## Built with Claude Code
-
-Most of Framescout was written in pair-programming sessions with
-[Claude Code](https://claude.com/claude-code), Anthropic's coding agent: design documents,
-implementation, tests and audits. Architecture, review and release decisions are the
-maintainer's. [`CLAUDE.md`](CLAUDE.md) is the working agreement the agent follows in this
-repository.
 
 ## License
 

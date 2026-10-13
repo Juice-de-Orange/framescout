@@ -8,7 +8,7 @@
 [![python-ci](https://github.com/Juice-de-Orange/framescout/actions/workflows/python-ci.yml/badge.svg)](https://github.com/Juice-de-Orange/framescout/actions/workflows/python-ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-![Framescout operator UI — configuration editor with live validation](docs/media/operator-ui-config.png)
+![Framescout operator UI — configuration editor with Validate and Save & Restart buttons](docs/media/operator-ui-config.png)
 
 ## Why
 

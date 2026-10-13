@@ -23,6 +23,29 @@ test.describe('config validate flow', () => {
     await expect(page.getByTestId('issues')).toHaveCount(0);
   });
 
+  test('Monaco starts its editor worker without console errors', async ({ page }) => {
+    // Without a configured MonacoEnvironment the bundled editor could not find
+    // its worker: one "Failed to load worker script for label:
+    // editorWorkerService" console error plus uncaught errors on every visit.
+    // Leave the live page first so its late requests cannot land in the list.
+    await page.goto('about:blank');
+    const errors: string[] = [];
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') errors.push(msg.text());
+    });
+    page.on('pageerror', (err) => errors.push(`uncaught: ${err.message}`));
+    const worker = page.waitForEvent('worker', { timeout: 20_000 });
+
+    await page.goto('/ui/config');
+    await page.locator('.monaco-editor').waitFor({ state: 'attached', timeout: 20_000 });
+    // Monaco starts the worker right after creating the editor; give a
+    // failing start time to surface.
+    const started = await worker;
+    await page.waitForTimeout(1_500);
+    expect(errors).toEqual([]);
+    expect(started.url()).toMatch(/\/ui\/assets\/editor\.worker-.*\.js$/);
+  });
+
   test('editor shows the config even when Monaco loads after it', async ({ page }) => {
     // Force the race: hold back the Monaco chunk so /api/config answers
     // first. The editor used to be created with the value of the very first

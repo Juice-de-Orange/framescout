@@ -117,8 +117,12 @@ interface FakeService {
   requests: Record<string, number>;
 }
 
+/** A number answers with that HTTP error status; `'hang'` never answers. */
+type Failure = number | 'hang';
+
 async function fakeService(
   answer: (clip: string) => unknown,
+  fail: (clip: string) => Failure | undefined = () => undefined,
 ): Promise<FakeService> {
   const requests: Record<string, number> = {};
   const server = createServer((req, res) => {
@@ -127,6 +131,13 @@ async function fakeService(
     req.on('end', () => {
       const clip = /clip-(person|animal)/.exec(Buffer.concat(chunks).toString('latin1'))?.[0] ?? '?';
       requests[clip] = (requests[clip] ?? 0) + 1;
+      const failure = fail(clip);
+      if (failure === 'hang') return;
+      if (failure !== undefined) {
+        res.writeHead(failure, { 'content-type': 'text/plain' });
+        res.end('inference failed');
+        return;
+      }
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify(answer(clip)));
     });
@@ -143,16 +154,22 @@ afterEach(async () => {
   while (cleanup.length > 0) await cleanup.pop()!();
 });
 
-async function runChain(emitBlankObservations: boolean) {
+async function runChain(
+  emitBlankObservations: boolean,
+  megadetectorOnPerson?: Failure,
+) {
   const dir = await mkdtemp(join(tmpdir(), 'fs-privacy-gate-'));
   cleanup.push(() => rm(dir, { recursive: true, force: true }));
 
-  const md = await fakeService((clip) => ({
-    detections:
-      clip === 'clip-person'
-        ? [{ category: 'person', confidence: 0.91, bbox: [0.4, 0.1, 0.2, 0.8] }]
-        : [{ category: 'animal', confidence: 0.94, bbox: [0.1, 0.2, 0.3, 0.4] }],
-  }));
+  const md = await fakeService(
+    (clip) => ({
+      detections:
+        clip === 'clip-person'
+          ? [{ category: 'person', confidence: 0.91, bbox: [0.4, 0.1, 0.2, 0.8] }]
+          : [{ category: 'animal', confidence: 0.94, bbox: [0.1, 0.2, 0.3, 0.4] }],
+    }),
+    (clip) => (clip === 'clip-person' ? megadetectorOnPerson : undefined),
+  );
   const df = await fakeService(() => ({
     predictions: [{ class: 'red_deer', confidence: 0.88 }],
   }));
@@ -176,7 +193,7 @@ async function runChain(emitBlankObservations: boolean) {
   );
   await Promise.all([megadetector.init(), deepfaune.init(), audit.init()]);
 
-  const { metrics } = createMetricsRegistry({ includeDefaults: false });
+  const { metrics, registry } = createMetricsRegistry({ includeDefaults: false });
   const abort = new AbortController();
   cleanup.push(async () => abort.abort());
   const recording = new RecordingSink();
@@ -217,6 +234,7 @@ async function runChain(emitBlankObservations: boolean) {
     decode,
     score: scoreStub,
     observationRing: ring,
+    ...(megadetectorOnPerson === 'hang' && { detectorTimeoutMs: 300 }),
   });
 
   const auditLines = async (): Promise<string[]> =>
@@ -228,7 +246,7 @@ async function runChain(emitBlankObservations: boolean) {
       .join('')
       .split('\n')
       .filter((l) => l.length > 0);
-  return { md, df, recording, ring, auditLines };
+  return { md, df, recording, ring, auditLines, registry };
 }
 
 describe('privacy gate — MegaDetector → DeepFaune chain', () => {
@@ -275,4 +293,32 @@ describe('privacy gate — MegaDetector → DeepFaune chain', () => {
     expect(lines).toHaveLength(1);
     expect(lines.join('')).not.toContain('clip-person');
   });
+
+  // Without MegaDetector's verdict nobody checked the person clip for
+  // people; the opt-in blank used to carry its frame as the image.
+  it.each([
+    ['answers 500', 500],
+    ['times out', 'hang'],
+  ] as const)(
+    'when MegaDetector %s, the unchecked clip reaches no sink, feed or audit line, not even as a blank',
+    async (_name, failure) => {
+      const { md, df, recording, ring, auditLines, registry } = await runChain(
+        true,
+        failure,
+      );
+
+      expect(md.requests['clip-person']).toBeGreaterThan(0);
+      expect(df.requests).toEqual({ 'clip-animal': 3 });
+      expect(recording.delivered.map((p) => p.observation.eventId)).toEqual([
+        'clip-animal',
+      ]);
+      expect(ring.list().map((e) => e.observation.eventId)).toEqual(['clip-animal']);
+      const lines = await auditLines();
+      expect(lines).toHaveLength(1);
+      expect(lines.join('')).not.toContain('clip-person');
+      expect(await registry.metrics()).toMatch(
+        /framescout_captures_total\{deployment="dep-1",camera="cam-1",outcome="detector_failed"\} 1/,
+      );
+    },
+  );
 });

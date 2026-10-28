@@ -78,6 +78,12 @@ The skip is logged structured at info level as
 `event: 'detector.privacy_skip'`. A `framescout_plugin_privacy_skip_total`
 counter increments per skipped event.
 
+If the service answers with an error or a request times out, the gate
+has no verdict for the event. As the first detector in the chain, this
+plugin then withholds the event too: nothing is emitted, also not as a
+blank, and it is counted as
+`framescout_captures_total{outcome="detector_failed"}`.
+
 Setting `skipFramesWithPersonAbove: 1.0` disables the gate — only do
 this after you've checked your jurisdiction's rules on identifiable
 imagery and you've decided the deployment can publish people-bearing

@@ -25,7 +25,7 @@ sources:
   - id: reolink-1
     package: '@framescout/source-reolink-hub'
     config:
-      baseUrl: https://192.0.2.50
+      baseUrl: https://192.0.2.50          # self-signed certificate? see docs/sources/reolink-hub.md
       username: admin
       passwordEnv: REOLINK_PASSWORD      # name of the env var holding the password
       channels:

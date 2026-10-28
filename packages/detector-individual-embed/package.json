@@ -58,7 +58,7 @@
   "dependencies": {
     "@framescout/core": "workspace:^",
     "@framescout/individual-recognition": "workspace:^",
-    "chokidar": "^5.0.0",
+    "chokidar": "^6.0.0",
     "onnxruntime-node": "^1.30.0",
     "sharp": "^0.35.3",
     "zod": "^3.23.0"

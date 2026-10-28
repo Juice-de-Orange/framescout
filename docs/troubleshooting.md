@@ -124,6 +124,17 @@ Token expired between the lease window's start and the search call.
 The client re-logs in automatically and retries — these are normal in
 the logs.
 
+### `fetch failed: self-signed certificate`
+
+Shown as the `cause` of `plugin init failed; retrying` for the Reolink
+source when `baseUrl` is `https://` and the hub presents a self-signed
+certificate. The daemon keeps retrying, but it cannot succeed until you
+either trust the certificate (`NODE_EXTRA_CA_CERTS`) or set
+`insecureSkipTlsVerify: true` on the source — see
+[HTTPS hubs](sources/reolink-hub.md#https-hubs-and-self-signed-certificates).
+`Hostname/IP does not match certificate's altnames` means the
+certificate is trusted but names a different host than `baseUrl`.
+
 ### `reolink login failed: code -7`
 
 Wrong username or password. Confirm with the Hub's web UI;

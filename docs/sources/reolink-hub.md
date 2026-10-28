@@ -53,6 +53,7 @@ sources:
 | `initialLookbackMs`  | `3600000`   | First-run search window (default 1 h). Subsequent runs resume from the per-channel watermark in `<dataDir>/<instanceId>/state.json`. |
 | `httpTimeoutMs`      | `15000`     | Per-call HTTP timeout for Login / Search / metadata calls. |
 | `downloadTimeoutMs`  | `60000`     | Per-call HTTP timeout for the clip download (ffmpeg's fetch). |
+| `insecureSkipTlsVerify` | `false` | Accept the hub's `https://` certificate without verifying it. See [HTTPS hubs](#https-hubs-and-self-signed-certificates). |
 
 ## State persistence
 
@@ -82,6 +83,28 @@ client transparently re-logs in and retries the failed call once.
 The token is embedded in URLs (`&token=…`) — that's how Reolink
 authenticates Download and Snap requests. ffmpeg picks up that URL
 from `CaptureEvent.clip.url` and fetches the MP4 directly.
+
+## HTTPS hubs and self-signed certificates
+
+A hub on `https://` typically presents a self-signed certificate.
+Node's `fetch` rejects it, so login fails and is retried forever with
+`fetch failed: self-signed certificate` (see
+[troubleshooting](../troubleshooting.md#fetch-failed-self-signed-certificate)).
+Two ways out:
+
+- **Trust the certificate.** Save the hub's certificate as PEM and
+  point `NODE_EXTRA_CA_CERTS` at it (an environment variable of the
+  daemon, read at start; in Docker, mount the file and set the
+  variable). Node still checks the host name, so this only works when
+  the certificate names the host or IP in `baseUrl`; otherwise the
+  error becomes `Hostname/IP does not match certificate's altnames`.
+- **Skip the check for this source.** `insecureSkipTlsVerify: true`
+  sends login and search over TLS without verifying the certificate,
+  and the daemon logs a warning at start. Anyone who can intercept
+  traffic between the daemon and the hub can then read the password.
+
+The clip download is not affected either way: ffmpeg fetches the
+`cmd=Download` URL and does not verify certificates by default.
 
 ## Known quirks
 

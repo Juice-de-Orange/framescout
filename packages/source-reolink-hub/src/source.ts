@@ -11,6 +11,7 @@ import {
   isAnimalTag,
   type ReolinkClipEvent,
 } from './client.js';
+import { fetchSkippingTlsVerify } from './insecure-fetch.js';
 import { SourceState } from './state.js';
 
 export interface ReolinkChannel {
@@ -33,6 +34,11 @@ export interface ReolinkHubConfig {
   readonly initialLookbackMs: number;
   readonly httpTimeoutMs: number;
   readonly downloadTimeoutMs: number;
+  /**
+   * Accept the hub's `https://` certificate without verifying it (hubs
+   * typically present a self-signed one). Default false.
+   */
+  readonly insecureSkipTlsVerify: boolean;
 }
 
 /**
@@ -71,6 +77,12 @@ export class ReolinkSource implements Source {
 
   async init(): Promise<void> {
     const password = this.readPassword();
+    if (this.config.insecureSkipTlsVerify) {
+      this.log.warn(
+        { baseUrl: this.config.baseUrl },
+        'reolink-hub: insecureSkipTlsVerify is on; the hub certificate is not verified',
+      );
+    }
     this.client = new ReolinkClient({
       baseUrl: this.config.baseUrl,
       username: this.config.username,
@@ -78,6 +90,7 @@ export class ReolinkSource implements Source {
       httpTimeoutMs: this.config.httpTimeoutMs,
       downloadTimeoutMs: this.config.downloadTimeoutMs,
       logger: this.log,
+      ...(this.config.insecureSkipTlsVerify && { fetchFn: fetchSkippingTlsVerify }),
     });
     await this.client.ping();
     await this.state.load();

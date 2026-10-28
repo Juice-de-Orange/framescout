@@ -23,6 +23,7 @@ const configSchema = z.object({
   initialLookbackMs: z.number().int().positive().default(60 * 60 * 1000),
   httpTimeoutMs: z.number().int().positive().default(15_000),
   downloadTimeoutMs: z.number().int().positive().default(60_000),
+  insecureSkipTlsVerify: z.boolean().default(false),
 });
 
 const manifest: PluginManifest = {

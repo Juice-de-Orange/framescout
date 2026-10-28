@@ -13,5 +13,5 @@ export type {
 } from './plugin.js';
 export type { CaptureEvent, Source } from './source.js';
 export type { Frame } from './frame.js';
-export type { Detection, DetectorInput, Detector } from './detection.js';
+export type { Detection, DetectorInput, DetectorResult, Detector } from './detection.js';
 export type { Observation, SinkPayload, Sink } from './observation.js';

@@ -157,7 +157,7 @@ describe('MegadetectorHttpDetector', () => {
     expect(out).toHaveLength(0);
   });
 
-  it('returns [] when ANY frame contains a person above the skip threshold', async () => {
+  it('returns no detections and privacySkip when ANY frame contains a person above the skip threshold', async () => {
     rig = await startServer({
       body: {
         detections: [
@@ -181,7 +181,7 @@ describe('MegadetectorHttpDetector', () => {
       { event: EVENT, frames: [FRAME] },
       new AbortController().signal,
     );
-    expect(out).toEqual([]);
+    expect(out).toEqual({ detections: [], privacySkip: true });
   });
 
   it('keeps detections when a person is below the skip threshold', async () => {

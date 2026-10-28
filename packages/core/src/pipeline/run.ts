@@ -2,6 +2,7 @@ import { ulid } from 'ulid';
 import type {
   CaptureEvent,
   Detection,
+  DetectorResult,
   Detector,
   Frame,
   Logger,
@@ -360,7 +361,7 @@ async function processEvent(args: {
 
   // ── detector chain ───────────────────────────────────────────────
   const detectEnd = opts.metrics.pipelineStageSeconds.startTimer({ stage: 'detect' });
-  const rawDetections = await runDetectorChain(
+  const { detections: rawDetections, privacySkip } = await runDetectorChain(
     opts.detectors,
     event,
     scored,
@@ -370,6 +371,17 @@ async function processEvent(args: {
     opts.detectorTimeoutMs ?? DEFAULT_DETECTOR_TIMEOUT_MS,
   );
   detectEnd();
+
+  // A detector withheld the event for privacy: nothing goes out, not even
+  // the opt-in blank, whose image would be the frame with the person.
+  if (privacySkip) {
+    opts.metrics.capturesTotal.inc({ ...labels, outcome: 'dropped_blank' }, 1);
+    log.debug(
+      { event: 'pipeline.event_dropped_privacy', eventId: event.eventId },
+      'privacy skip; event not emitted',
+    );
+    return;
+  }
 
   // ── per-camera decide overrides (Backlog #18 / Bridge-parity) ──
   const override = event.cameraId
@@ -481,7 +493,7 @@ async function runDetectorChain(
   metrics: FramescoutMetrics,
   log: Logger,
   timeoutMs: number,
-): Promise<Detection[]> {
+): Promise<{ detections: Detection[]; privacySkip: boolean }> {
   let detections: Detection[] = [];
   for (const [index, entry] of detectors.entries()) {
     // An empty working set after the first detector ends the chain. Every
@@ -517,7 +529,7 @@ async function runDetectorChain(
     else signal.addEventListener('abort', onParentAbort, { once: true });
 
     try {
-      const out = await withTimeout(
+      const result = await withTimeout(
         entry.detector.detect(
           {
             event,
@@ -533,6 +545,17 @@ async function runDetectorChain(
             detectorController.abort(new Error('detector timeout')),
         },
       );
+      metrics.detectorInferencesTotal.inc(
+        { detector: entry.instanceId, outcome: 'success' },
+        1,
+      );
+      // A privacy skip ends the event, whatever upstream detectors found.
+      if (!Array.isArray(result) && (result as DetectorResult).privacySkip) {
+        return { detections: [], privacySkip: true };
+      }
+      const out: readonly Detection[] = Array.isArray(result)
+        ? result
+        : (result as DetectorResult).detections;
       // A detector's return value IS the new working set — it does not get
       // appended to the previous one.
       //
@@ -565,10 +588,6 @@ async function runDetectorChain(
       } else {
         detections = [...out];
       }
-      metrics.detectorInferencesTotal.inc(
-        { detector: entry.instanceId, outcome: 'success' },
-        1,
-      );
     } catch (err) {
       const outcome = err instanceof TimeoutError ? 'timeout' : 'error';
       metrics.detectorInferencesTotal.inc(
@@ -591,5 +610,5 @@ async function runDetectorChain(
       signal.removeEventListener('abort', onParentAbort);
     }
   }
-  return detections;
+  return { detections, privacySkip: false };
 }

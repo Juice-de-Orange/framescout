@@ -2,6 +2,7 @@ import type {
   Detection,
   Detector,
   DetectorInput,
+  DetectorResult,
   Frame,
   PluginContext,
 } from '@framescout/plugin-api';
@@ -73,7 +74,7 @@ export class MegadetectorHttpDetector implements Detector {
   async detect(
     input: DetectorInput,
     signal: AbortSignal,
-  ): Promise<readonly Detection[]> {
+  ): Promise<readonly Detection[] | DetectorResult> {
     const results: Detection[] = [];
     let personSkip = false;
 
@@ -113,7 +114,7 @@ export class MegadetectorHttpDetector implements Detector {
         { event: 'detector.privacy_skip', frames: input.frames.length },
         'megadetector-http: privacy gate fired — returning empty detections',
       );
-      return [];
+      return { detections: [], privacySkip: true };
     }
 
     return results;

@@ -67,13 +67,12 @@ detectors:
 
 If **any** frame in a `CaptureEvent` contains a `person` detection
 with confidence ≥ `skipFramesWithPersonAbove`, the detector returns
-an empty list for the whole event. No later detector in the chain
-(DeepFaune, classify-http, individual-embed) is called for that event,
-and the pipeline then:
-
-- Skips the event silently when the Source's
-  `emitBlankObservations: false` (the default).
-- Emits an `observationType: 'blank'` placeholder when `true`.
+an empty list for the whole event and marks it as a privacy skip. No
+later detector in the chain (DeepFaune, classify-http, individual-embed)
+is called for that event, and the pipeline emits nothing for it — also
+not when the Source has `emitBlankObservations: true`, because a blank's
+image would be the frame with the person. It is counted as
+`framescout_captures_total{outcome="dropped_blank"}`.
 
 The skip is logged structured at info level as
 `event: 'detector.privacy_skip'`. A `framescout_plugin_privacy_skip_total`

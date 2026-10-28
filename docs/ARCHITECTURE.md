@@ -250,8 +250,16 @@ export interface DetectorInput {
   readonly previousDetections?: readonly Detection[]; // from upstream detector
 }
 
+export interface DetectorResult {
+  readonly detections: readonly Detection[];
+  readonly privacySkip?: boolean;       // withheld for privacy: emit nothing
+}
+
 export interface Detector extends PluginLifecycle {
-  detect(input: DetectorInput, signal: AbortSignal): Promise<readonly Detection[]>;
+  detect(
+    input: DetectorInput,
+    signal: AbortSignal,
+  ): Promise<readonly Detection[] | DetectorResult>;
 }
 ```
 
@@ -265,8 +273,8 @@ A detector's return value replaces the working set. Stage-2 detectors are
 *enrichers*: they return the upstream set with the labels they handle
 enriched (species, individual) and everything else passed through. Once the
 working set is empty, the host calls no later detector for that event — a
-stage-2 detector has nothing to enrich, and an empty set is what a privacy
-gate returns (§7.3).
+stage-2 detector has nothing to enrich. A privacy gate returns
+`{ detections: [], privacySkip: true }` (§7.3), which also ends the chain.
 
 ```typescript
 // ──────────── Sink ──────────────────────────────────────────────────────
@@ -626,12 +634,12 @@ can see what was rejected). `count: 0`.
 **Person-skip privacy gate.** Privacy filtering happens **inside Detector
 plugins**, not in the orchestrator. The MegaDetector plugin exposes
 `skipFramesWithPersonAbove: 0.15` and returns an empty detection list
-for any frame where a person is detected above that threshold. The
-orchestrator calls no later detector once the working set is empty, so a
-species classifier further down the chain never sees the event; the
-pipeline then either emits a blank Observation (if opted in) or silently
-skips (default). The skip is logged as
-`event: 'detector.privacy_skip'`.
+for any frame where a person is detected above that threshold, marked
+`privacySkip: true`. The orchestrator calls no later detector, so a
+species classifier further down the chain never sees the event, and it
+emits nothing for it — also not with `emitBlankObservations: true`,
+because a blank's `bestFrame` would be the frame with the person. The
+skip is logged as `event: 'detector.privacy_skip'`.
 
 This split keeps the core agnostic to label semantics — only Detectors
 that produce a "person" label need the gate, and they own its

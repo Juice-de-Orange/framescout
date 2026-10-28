@@ -61,12 +61,18 @@ jobs:
       - run: pip install -e "studio[onnx,dev]"
       - run: ruff check studio
       - run: pytest studio/tests -q
-      # Advisory check for the Python side (the TS side runs `pnpm audit`).
+      # Advisory check for the Python side (the TS side has no audit step;
+      # it relies on Dependabot alerts). Audit the frozen dependency set,
+      # not the environment: the editable framescout packages are not on
+      # PyPI (`--strict` would always fail on them), `pip freeze` leaves
+      # out pip and setuptools of the runner, and it runs before pip-audit
+      # is installed, so pip-audit's own dependencies are not audited.
+      - run: pip freeze --exclude-editable > "$RUNNER_TEMP/requirements.txt"
       - run: pip install --quiet pip-audit
       # Deliberately non-blocking for now: an advisory in a transitive torch
       # dependency without an available fix would otherwise fail every PR.
       # Once the output stays quiet for a few weeks, drop `continue-on-error`
-      # to make it blocking, like `pnpm audit --audit-level=low` on the TS side.
-      - run: pip-audit --strict --desc
+      # to make it blocking.
+      - run: pip-audit --strict --desc --no-deps --disable-pip -r "$RUNNER_TEMP/requirements.txt"
         continue-on-error: true
 

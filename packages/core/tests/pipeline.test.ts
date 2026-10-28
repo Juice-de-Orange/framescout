@@ -4,6 +4,7 @@ import type {
   Detection,
   Detector,
   DetectorInput,
+  DetectorResult,
   Sink,
   SinkPayload,
   Source,
@@ -905,6 +906,22 @@ class WholeFrameClassifier implements Detector {
   }
 }
 
+/** MegaDetector's person gate: no detections, and the event is withheld. */
+class PrivacyGate implements Detector {
+  init(): Promise<void> {
+    return Promise.resolve();
+  }
+  start(): Promise<void> {
+    return Promise.resolve();
+  }
+  stop(): Promise<void> {
+    return Promise.resolve();
+  }
+  detect(): Promise<DetectorResult> {
+    return Promise.resolve({ detections: [], privacySkip: true });
+  }
+}
+
 describe('detector chain — privacy gate', () => {
   let r: Rig;
   beforeEach(() => {
@@ -914,9 +931,12 @@ describe('detector chain — privacy gate', () => {
     r.abortController.abort();
   });
 
-  async function runGated(stage1: Detector, emitBlankObservations: boolean) {
+  async function runGated(
+    stage1: Detector,
+    emitBlankObservations: boolean,
+    stage2: Detector & { calls?: number } = new WholeFrameClassifier(),
+  ) {
     const source = new MockSource([makeEvent('person')]);
-    const stage2 = new WholeFrameClassifier();
     const sink = new RecordingSink();
     const ring = new ObservationRing(16);
     const wrapped = new BoundedSinkWrapper({
@@ -949,7 +969,7 @@ describe('detector chain — privacy gate', () => {
 
   it('a privacy skip upstream ends the event: no stage 2, no observation, no thumbnail', async () => {
     // MegaDetector saw a person: the gate returns no detections at all.
-    const { sink, ring, stage2 } = await runGated(new MockDetector([]), false);
+    const { sink, ring, stage2 } = await runGated(new PrivacyGate(), false);
 
     expect(sink.delivered).toHaveLength(0);
     expect(stage2.calls).toBe(0);
@@ -959,13 +979,37 @@ describe('detector chain — privacy gate', () => {
     expect(metricLines).not.toMatch(/outcome="emitted"/);
   });
 
-  it('with emitBlankObservations the skipped event stays a blank, never an animal', async () => {
+  // #75: the opt-in blank's image would be the frame with the person.
+  it('with emitBlankObservations a privacy skip still emits nothing, not even a blank', async () => {
+    const { sink, ring, stage2 } = await runGated(new PrivacyGate(), true);
+
+    expect(sink.delivered).toHaveLength(0);
+    expect(ring.size()).toBe(0);
+    expect(stage2.calls).toBe(0);
+    const metricLines = await r.registry.metrics();
+    expect(metricLines).toMatch(/outcome="dropped_blank"\} 1/);
+  });
+
+  it('with emitBlankObservations an event where nothing was found stays a blank, never an animal', async () => {
     const { sink, stage2 } = await runGated(new MockDetector([]), true);
 
     expect(sink.delivered).toHaveLength(1);
     expect(sink.delivered[0]!.observation.observationType).toBe('blank');
     expect(stage2.calls).toBe(0);
     expect(sink.delivered[0]!.allDetections).toHaveLength(0);
+  });
+
+  it('a privacy skip further down the chain drops the upstream detections too', async () => {
+    const animal: Detection = {
+      label: 'animal',
+      confidence: 0.9,
+      modelName: 'megadetector',
+      modelVersion: 'v6.0',
+    };
+    const { sink, ring } = await runGated(new MockDetector([animal]), true, new PrivacyGate());
+
+    expect(sink.delivered).toHaveLength(0);
+    expect(ring.size()).toBe(0);
   });
 
   it('a failed stage 1 does not hand the clip to stage 2 unchecked', async () => {

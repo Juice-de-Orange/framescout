@@ -229,9 +229,11 @@ detector's output (v0.1 chains in YAML declaration order). Use
 Your return value replaces the working set. A stage-2 detector is an
 enricher: return the upstream set with the detections you handle
 enriched and the rest passed through. Once the working set is empty the
-host does not call later detectors for that event — that is how a
-privacy gate (return `[]`) keeps the event away from everything after
-it.
+host does not call later detectors for that event. A privacy gate
+returns `{ detections: [], privacySkip: true }` instead of a plain
+array: the chain ends and the host emits nothing for the event, not
+even an opt-in `blank` observation (whose image would be the gated
+frame).
 
 ### `Sink`
 

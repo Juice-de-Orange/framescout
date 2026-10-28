@@ -41,7 +41,7 @@ export interface Detection {
 // @public
 export interface Detector extends PluginLifecycle {
     // (undocumented)
-    detect(input: DetectorInput, signal: AbortSignal): Promise<readonly Detection[]>;
+    detect(input: DetectorInput, signal: AbortSignal): Promise<readonly Detection[] | DetectorResult>;
 }
 
 // @public
@@ -52,6 +52,13 @@ export interface DetectorInput {
     readonly frames: readonly Frame[];
     // (undocumented)
     readonly previousDetections?: readonly Detection[];
+}
+
+// @public
+export interface DetectorResult {
+    // (undocumented)
+    readonly detections: readonly Detection[];
+    readonly privacySkip?: boolean;
 }
 
 // @public

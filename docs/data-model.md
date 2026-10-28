@@ -61,9 +61,9 @@ event:
 - MegaDetector `animal` + DeepFaune below threshold OR not configured
   → `'animal'`, `scientificName` and `taxonRank` null.
 - MegaDetector `person` AND confidence ≥ `skipFramesWithPersonAbove`
-  → frame is skipped by the detector (returns empty Detection list).
-  Upstream: no Observation emitted unless `emitBlankObservations: true`,
-  in which case `observationType: 'blank'`.
+  → the event is skipped by the detector (empty Detection list, marked
+  `privacySkip`). No Observation is emitted, also not with
+  `emitBlankObservations: true`.
 - MegaDetector `vehicle` → `'vehicle'`.
 - Zero detections (no animal / no human / no vehicle) → no Observation
   emitted by default; `'blank'` if `emitBlankObservations: true` on the

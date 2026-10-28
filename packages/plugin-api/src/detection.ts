@@ -32,6 +32,20 @@ export interface DetectorInput {
 }
 
 /**
+ * What `detect()` returns when it has more to say than the detections.
+ * A plain array means the same as `{ detections }`.
+ */
+export interface DetectorResult {
+  readonly detections: readonly Detection[];
+  /**
+   * The detector withheld the event for privacy (MegaDetector's person
+   * gate). The host then emits nothing for it, not even the opt-in
+   * `blank` observation, whose image would be the frame with the person.
+   */
+  readonly privacySkip?: boolean;
+}
+
+/**
  * A Detector plugin runs inference on a set of scored frames and returns
  * detections. The host wraps each call in a configurable timeout and an
  * `AbortSignal` (separate from the daemon-shutdown one).
@@ -50,13 +64,14 @@ export interface DetectorInput {
  *
  * Once the working set is empty after a detector, the host calls no later
  * detector for that event: a stage-2 detector only ever sees a non-empty
- * `previousDetections`. An empty set is what a privacy gate returns (the
- * MegaDetector plugin's person gate), so no later detector can turn a
- * gated event back into an observation.
+ * `previousDetections`. A privacy gate (the MegaDetector plugin's person
+ * gate) returns `{ detections: [], privacySkip: true }`: no later detector
+ * can turn the gated event back into an observation, and no `blank`
+ * observation carries its frame to a sink.
  */
 export interface Detector extends PluginLifecycle {
   detect(
     input: DetectorInput,
     signal: AbortSignal,
-  ): Promise<readonly Detection[]>;
+  ): Promise<readonly Detection[] | DetectorResult>;
 }

@@ -73,7 +73,7 @@ Prometheus text exposition with Node process metrics + the
 
 | Metric                              | Type      | Labels                              | Description |
 |-------------------------------------|-----------|-------------------------------------|-------------|
-| `framescout_captures_total`         | counter   | `deployment`, `camera`, `outcome`   | Capture events from Source plugins. `outcome` ∈ `received \| emitted \| dropped_blank \| no_frames \| decode_failed` (ffmpeg could not read the clip; event skipped) `\| failed` (any later stage threw; event skipped). |
+| `framescout_captures_total`         | counter   | `deployment`, `camera`, `outcome`   | Capture events from Source plugins. `outcome` ∈ `received \| emitted \| dropped_blank \| no_frames \| decode_failed` (ffmpeg could not read the clip; event skipped) `\| detector_failed` (the first detector failed or timed out; event not emitted, not even as a blank) `\| failed` (any later stage threw; event skipped). |
 | `framescout_frames_extracted_total` | counter   | `deployment`, `camera`              | Frames produced by the decode stage. |
 | `framescout_pipeline_stage_seconds` | histogram | `stage`                             | Per-stage wall-clock. `stage` ∈ `decode \| score \| detect \| observe \| fan_out`. |
 
@@ -87,6 +87,10 @@ Prometheus text exposition with Node process metrics + the
 `outcome="timeout"` means the host aborted the call because it ran past
 `detectorTimeoutMs` (default 60_000 ms). The pipeline keeps going with
 detections from upstream detectors — same recovery path as `outcome="error"`.
+The first detector has no upstream detections, and without its verdict
+nobody has checked the clip for people: when it fails or times out, the
+event is not emitted and is counted as
+`framescout_captures_total{outcome="detector_failed"}`.
 
 ### Sinks
 

@@ -81,7 +81,10 @@ daemon cannot tell it from a hub that is still booting — fix
 `REOLINK_PASSWORD` and restart.
 
 Detector endpoints are not contacted at startup — a wrong detector URL
-shows up later as `detector failed; continuing …` on every event.
+shows up later as `detector failed; continuing …` on every event, or, for
+the first detector in the chain, as
+`first detector failed; event not emitted`: without its verdict no event
+goes out.
 
 ### `reolink-hub: passwordEnv "…" is empty` / `InitFailed` for a detector
 

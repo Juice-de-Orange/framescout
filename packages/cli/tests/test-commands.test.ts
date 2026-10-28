@@ -158,9 +158,10 @@ describe('framescout test pipeline', () => {
       failures: Array<{ kind: string; id: string; error: string }>;
     };
     expect(parsed.ok).toBe(false);
+    // A failed first detector ends the event before the fan-out, like in
+    // the daemon, so the failing sink is not reached in this run.
     expect(parsed.failures.map((f) => `${f.kind}:${f.id}`).sort()).toEqual([
       'detector:det',
-      'sink:out',
     ]);
   });
 

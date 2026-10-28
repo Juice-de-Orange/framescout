@@ -275,6 +275,10 @@ enriched (species, individual) and everything else passed through. Once the
 working set is empty, the host calls no later detector for that event — a
 stage-2 detector has nothing to enrich. A privacy gate returns
 `{ detections: [], privacySkip: true }` (§7.3), which also ends the chain.
+When a later detector fails or times out, the host keeps the upstream
+working set. When the first detector fails or times out, there is no
+upstream set and nobody has checked the clip for people: the chain ends and
+the event is not emitted (§7.3).
 
 ```typescript
 // ──────────── Sink ──────────────────────────────────────────────────────
@@ -639,7 +643,10 @@ for any frame where a person is detected above that threshold, marked
 species classifier further down the chain never sees the event, and it
 emits nothing for it — also not with `emitBlankObservations: true`,
 because a blank's `bestFrame` would be the frame with the person. The
-skip is logged as `event: 'detector.privacy_skip'`.
+skip is logged as `event: 'detector.privacy_skip'`. The same holds when the
+first detector in the chain fails or times out: without its verdict nobody
+has checked the clip for people, so the event is not emitted either, blank
+or not, and is counted as `framescout_captures_total{outcome="detector_failed"}`.
 
 This split keeps the core agnostic to label semantics — only Detectors
 that produce a "person" label need the gate, and they own its

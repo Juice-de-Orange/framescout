@@ -361,7 +361,7 @@ async function processEvent(args: {
 
   // ── detector chain ───────────────────────────────────────────────
   const detectEnd = opts.metrics.pipelineStageSeconds.startTimer({ stage: 'detect' });
-  const { detections: rawDetections, privacySkip } = await runDetectorChain(
+  const { detections: rawDetections, privacySkip, stage1Failed } = await runDetectorChain(
     opts.detectors,
     event,
     scored,
@@ -380,6 +380,14 @@ async function processEvent(args: {
       { event: 'pipeline.event_dropped_privacy', eventId: event.eventId },
       'privacy skip; event not emitted',
     );
+    return;
+  }
+
+  // The first detector failed or timed out: nobody checked the clip for
+  // people, so it goes nowhere — not even as the opt-in blank, whose image
+  // would be an unchecked frame.
+  if (stage1Failed) {
+    opts.metrics.capturesTotal.inc({ ...labels, outcome: 'detector_failed' }, 1);
     return;
   }
 
@@ -493,7 +501,7 @@ async function runDetectorChain(
   metrics: FramescoutMetrics,
   log: Logger,
   timeoutMs: number,
-): Promise<{ detections: Detection[]; privacySkip: boolean }> {
+): Promise<{ detections: Detection[]; privacySkip: boolean; stage1Failed: boolean }> {
   let detections: Detection[] = [];
   for (const [index, entry] of detectors.entries()) {
     // An empty working set after the first detector ends the chain. Every
@@ -551,7 +559,7 @@ async function runDetectorChain(
       );
       // A privacy skip ends the event, whatever upstream detectors found.
       if (!Array.isArray(result) && (result as DetectorResult).privacySkip) {
-        return { detections: [], privacySkip: true };
+        return { detections: [], privacySkip: true, stage1Failed: false };
       }
       const out: readonly Detection[] = Array.isArray(result)
         ? result
@@ -594,6 +602,21 @@ async function runDetectorChain(
         { detector: entry.instanceId, outcome },
         1,
       );
+      // Stage 1 has no upstream detections to fall back on, and without
+      // its verdict nobody has checked the clip for people.
+      if (index === 0) {
+        log.warn(
+          {
+            ...(outcome === 'timeout' ? { timeoutMs } : { err }),
+            detector: entry.instanceId,
+            eventId: event.eventId,
+          },
+          outcome === 'timeout'
+            ? 'first detector timed out; event not emitted'
+            : 'first detector failed; event not emitted',
+        );
+        return { detections: [], privacySkip: false, stage1Failed: true };
+      }
       if (outcome === 'timeout') {
         log.warn(
           { detector: entry.instanceId, timeoutMs },
@@ -610,5 +633,5 @@ async function runDetectorChain(
       signal.removeEventListener('abort', onParentAbort);
     }
   }
-  return { detections, privacySkip: false };
+  return { detections, privacySkip: false, stage1Failed: false };
 }

@@ -65,6 +65,8 @@ event:
   `privacySkip`). No Observation is emitted, also not with
   `emitBlankObservations: true`.
 - MegaDetector `vehicle` → `'vehicle'`.
+- MegaDetector failed or timed out → nobody checked the clip for people.
+  No Observation is emitted, also not with `emitBlankObservations: true`.
 - Zero detections (no animal / no human / no vehicle) → no Observation
   emitted by default; `'blank'` if `emitBlankObservations: true` on the
   source.

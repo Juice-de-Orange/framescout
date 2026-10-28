@@ -935,6 +935,7 @@ describe('detector chain — privacy gate', () => {
     stage1: Detector,
     emitBlankObservations: boolean,
     stage2: Detector & { calls?: number } = new WholeFrameClassifier(),
+    detectorTimeoutMs?: number,
   ) {
     const source = new MockSource([makeEvent('person')]);
     const sink = new RecordingSink();
@@ -963,6 +964,7 @@ describe('detector chain — privacy gate', () => {
       decode: decodeStub,
       score: scoreStub,
       observationRing: ring,
+      ...(detectorTimeoutMs !== undefined && { detectorTimeoutMs }),
     });
     return { sink, ring, stage2 };
   }
@@ -1024,5 +1026,47 @@ describe('detector chain — privacy gate', () => {
     expect(sink.delivered).toHaveLength(0);
     expect(stage2.calls).toBe(0);
     expect(ring.size()).toBe(0);
+  });
+
+  // Without stage 1's verdict nobody checked the clip for people, so the
+  // opt-in blank would carry an unchecked frame as its image.
+  it('with emitBlankObservations a failed stage 1 still emits nothing, not even a blank', async () => {
+    const failing: Detector = {
+      init: () => Promise.resolve(),
+      start: () => Promise.resolve(),
+      stop: () => Promise.resolve(),
+      detect: () => Promise.reject(new Error('megadetector 500')),
+    };
+    const { sink, ring, stage2 } = await runGated(failing, true);
+
+    expect(sink.delivered).toHaveLength(0);
+    expect(ring.size()).toBe(0);
+    expect(stage2.calls).toBe(0);
+    const metricLines = await r.registry.metrics();
+    expect(metricLines).toMatch(/outcome="detector_failed"\} 1/);
+    expect(metricLines).not.toMatch(/outcome="emitted"/);
+  });
+
+  it('with emitBlankObservations a timed-out stage 1 still emits nothing, not even a blank', async () => {
+    const stuck: Detector = {
+      init: () => Promise.resolve(),
+      start: () => Promise.resolve(),
+      stop: () => Promise.resolve(),
+      detect: (_input, signal) =>
+        new Promise<readonly Detection[]>((_, reject) => {
+          signal.addEventListener('abort', () => reject(new Error('aborted by host')));
+        }),
+    };
+    const { sink, ring, stage2 } = await runGated(stuck, true, undefined, 50);
+
+    expect(sink.delivered).toHaveLength(0);
+    expect(ring.size()).toBe(0);
+    expect(stage2.calls).toBe(0);
+    const metricLines = await r.registry.metrics();
+    expect(metricLines).toMatch(
+      /framescout_detector_inferences_total\{detector="megadetector",outcome="timeout"\} 1/,
+    );
+    expect(metricLines).toMatch(/outcome="detector_failed"\} 1/);
+    expect(metricLines).not.toMatch(/outcome="emitted"/);
   });
 });

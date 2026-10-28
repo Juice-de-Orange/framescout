@@ -1,6 +1,6 @@
 {
   "name": "@framescout/sink-mqtt",
-  "version": "0.0.0",
+  "version": "0.2.0",
   "description": "Framescout Sink plugin: publish observations as JSON messages to an MQTT broker.",
   "license": "Apache-2.0",
   "author": "Max Oberrauch",
@@ -10,8 +10,15 @@
     "url": "git+https://github.com/Juice-de-Orange/framescout.git",
     "directory": "packages/sink-mqtt"
   },
-  "bugs": { "url": "https://github.com/Juice-de-Orange/framescout/issues" },
-  "keywords": ["framescout-plugin", "framescout-sink", "mqtt", "home-assistant"],
+  "bugs": {
+    "url": "https://github.com/Juice-de-Orange/framescout/issues"
+  },
+  "keywords": [
+    "framescout-plugin",
+    "framescout-sink",
+    "mqtt",
+    "home-assistant"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -23,8 +30,14 @@
     },
     "./package.json": "./package.json"
   },
-  "files": ["dist", "README.md", "LICENSE"],
-  "engines": { "node": ">=22.12.0" },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "build": "tsc -b",
     "lint": "eslint src",

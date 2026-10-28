@@ -1,6 +1,6 @@
 {
   "name": "@framescout/core",
-  "version": "0.0.0",
+  "version": "0.2.0",
   "description": "Framescout orchestrator — plugin loader, async-iterator pipeline, observability runtime.",
   "license": "Apache-2.0",
   "author": "Max Oberrauch",

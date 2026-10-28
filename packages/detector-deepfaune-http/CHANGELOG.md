@@ -1,0 +1,22 @@
+# Changelog
+
+## 0.2.0 (2026-10-28)
+
+
+### Features
+
+* plugin API, core runtime and built-in plugins ([55aa705](https://github.com/Juice-de-Orange/framescout/commit/55aa7054f20f7cb0c2e44e9df5c260a5c335ba3f))
+
+
+### Bug Fixes
+
+* keep person clips out of the detector chain; Monaco worker; doc fixes ([#74](https://github.com/Juice-de-Orange/framescout/issues/74)) ([3d87a1d](https://github.com/Juice-de-Orange/framescout/commit/3d87a1d7ff6645de0360c8f43f0a78ec5cf98c67))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @framescout/plugin-api bumped to 0.1.0
+  * peerDependencies
+    * @framescout/plugin-api bumped to 0.1.0

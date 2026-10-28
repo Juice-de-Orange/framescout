@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, mkdir, rename } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -127,6 +127,51 @@ describe('loadPlugin (happy path)', () => {
     });
     const loaded = await loadPlugin({ package: dir, config: {}, ctx });
     expect(loaded.manifest.id).toBe('test-source');
+  });
+});
+
+describe('loadPlugin (npm specifier resolution)', () => {
+  const MANIFEST = {
+    apiVersion: '^0.1.0',
+    kind: 'source',
+    id: 'test-source',
+    displayName: 'Test Source',
+  };
+
+  const cwd = process.cwd();
+  afterEach(() => process.chdir(cwd));
+
+  /** A host directory with the fixture installed as node_modules/@test/fixture. */
+  async function createHost(id = 'test-source'): Promise<string> {
+    const host = await mkdtemp(join(tmpdir(), 'fs-loader-host-'));
+    createdDirs.push(host);
+    const fixture = await createFixture({
+      framescout: { ...MANIFEST, id },
+      factoryCode: VALID_FACTORY.replace("id: 'test-source'", `id: '${id}'`),
+    });
+    await mkdir(join(host, 'node_modules', '@test'), { recursive: true });
+    await rename(fixture, join(host, 'node_modules', '@test', 'fixture'));
+    return host;
+  }
+
+  it('resolves from resolveFrom when the cwd cannot reach the package', async () => {
+    const host = await createHost();
+    const loaded = await loadPlugin({ package: '@test/fixture', resolveFrom: host, config: {}, ctx });
+    expect(loaded.manifest.id).toBe('test-source');
+  });
+
+  it('prefers the copy reachable from the cwd over resolveFrom', async () => {
+    const local = await createHost('local-copy');
+    const host = await createHost('host-copy');
+    process.chdir(local);
+    const loaded = await loadPlugin({ package: '@test/fixture', resolveFrom: host, config: {}, ctx });
+    expect(loaded.manifest.id).toBe('local-copy');
+  });
+
+  it('rejects when neither the cwd nor resolveFrom has the package', async () => {
+    await expect(
+      loadPlugin({ package: '@test/fixture', config: {}, ctx }),
+    ).rejects.toThrow(/Cannot find module '@test\/fixture\/package\.json'/);
   });
 });
 

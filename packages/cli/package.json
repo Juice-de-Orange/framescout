@@ -1,6 +1,6 @@
 {
   "name": "@framescout/cli",
-  "version": "0.0.0",
+  "version": "0.2.0",
   "description": "Command-line interface for Framescout: config validation, schema export, test runs.",
   "license": "Apache-2.0",
   "author": "Max Oberrauch",
@@ -10,7 +10,9 @@
     "url": "git+https://github.com/Juice-de-Orange/framescout.git",
     "directory": "packages/cli"
   },
-  "bugs": { "url": "https://github.com/Juice-de-Orange/framescout/issues" },
+  "bugs": {
+    "url": "https://github.com/Juice-de-Orange/framescout/issues"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -25,8 +27,14 @@
     },
     "./package.json": "./package.json"
   },
-  "files": ["dist", "README.md", "LICENSE"],
-  "engines": { "node": ">=22.12.0" },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "build": "tsc -b",
     "lint": "eslint src",

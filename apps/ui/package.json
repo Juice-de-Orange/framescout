@@ -20,7 +20,7 @@
   "dependencies": {
     "monaco-editor": "^0.57.0",
     "monaco-yaml": "^5.5.1",
-    "preact": "^10.25.0",
+    "preact": "^11.0.1",
     "wouter-preact": "^3.13.0"
   },
   "devDependencies": {

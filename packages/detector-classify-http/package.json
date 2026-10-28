@@ -51,7 +51,7 @@
     "@framescout/detector-deepfaune-http": "workspace:^",
     "@framescout/individual-recognition": "workspace:^",
     "chokidar": "^6.0.0",
-    "zod": "^3.23.0"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@framescout/plugin-api": "workspace:^"

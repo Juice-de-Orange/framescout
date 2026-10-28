@@ -1,3 +1,5 @@
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   BoundedSinkWrapper,
   createPluginContext,
@@ -24,6 +26,10 @@ import type {
   Sink,
   Source,
 } from '@framescout/plugin-api';
+
+// The daemon depends on the bundled plugins, so their npm specifiers
+// resolve from here when the working directory cannot reach them.
+const PLUGIN_RESOLVE_DIR = dirname(fileURLToPath(import.meta.url));
 
 export interface WireDependencies {
   readonly logger: Logger;
@@ -113,6 +119,7 @@ async function wireSource(
   });
   const loaded = await preparePlugin<Source>({
     package: entry.package,
+    resolveFrom: PLUGIN_RESOLVE_DIR,
     config: entry.config,
     ctx,
   });
@@ -151,6 +158,7 @@ async function wireDetector(
   });
   const loaded = await loadPlugin<Detector>({
     package: entry.package,
+    resolveFrom: PLUGIN_RESOLVE_DIR,
     config: entry.config,
     ctx,
     ...(deps.initTimeoutMs !== undefined && { initTimeoutMs: deps.initTimeoutMs }),
@@ -186,6 +194,7 @@ async function wireSink(
   });
   const loaded = await preparePlugin<Sink>({
     package: entry.package,
+    resolveFrom: PLUGIN_RESOLVE_DIR,
     config: entry.config,
     ctx,
   });

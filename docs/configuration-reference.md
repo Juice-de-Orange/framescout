@@ -124,7 +124,7 @@ populate the `deployments.csv` table. Each entry:
 | Key                      | Type    | Default     | Description |
 |--------------------------|---------|-------------|-------------|
 | `id`                     | string  | (required)  | Operator id (unique). Surfaces in logs, metrics labels, `ctx.dataDir`. |
-| `package`                | string  | (required)  | npm package specifier OR absolute path to the plugin. |
+| `package`                | string  | (required)  | npm package specifier OR absolute path to the plugin. A package name is looked up from the working directory first, then among the daemon's own dependencies (the bundled plugins), so those load from any directory. Same for detectors and sinks. |
 | `config`                 | object  | (required)  | Forwarded to the plugin's `configSchema.parse()`. |
 | `emitBlankObservations`  | boolean | `false`     | When `true`, events with zero detections still emit an `observationType: 'blank'` payload. Useful for occupancy modelling. |
 | `topNFrames`             | integer | `1`         | Number of top-scoring frames emitted as media-level observations per event. `1` (default) = canonical Framescout one-observation-per-event. Set to `3` for Bridge-compat galleries — emitted observations get `mediaId: <eventId>-frame<idx>`, chronologically sorted. |
@@ -263,7 +263,7 @@ requires a container restart in v0.1 (ARCHITECTURE.md §10).
 
 | Variable        | Effect                                                           |
 |-----------------|------------------------------------------------------------------|
-| `CONFIG_PATH`   | Path to `config.yaml`. Default `./config.yaml`.                  |
+| `CONFIG_PATH`   | Path to `config.yaml`. Default `./config.yaml`, relative to the working directory. |
 | `METRICS_PORT`  | Override `framescout.metricsPort`. `0` disables HTTP surface. The container healthcheck probes this port (default 9090), so change the port here rather than only in `config.yaml`. |
 | `LOG_LEVEL`     | `trace` \| `debug` \| `info` \| `warn` \| `error`. Default `info`. |
 | any `*Env` / `!env`-referenced var | Plugin secrets and substituted values.  |

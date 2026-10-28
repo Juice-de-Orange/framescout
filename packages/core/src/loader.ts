@@ -26,10 +26,17 @@ import {
 export interface LoadPluginOptions {
   /**
    * Either an npm package specifier (resolved through Node's normal
-   * algorithm against the process cwd) or an absolute filesystem path
-   * to a plugin's root directory (containing `package.json`).
+   * algorithm against the process cwd, then against `resolveFrom`) or an
+   * absolute filesystem path to a plugin's root directory (containing
+   * `package.json`).
    */
   package: string;
+  /**
+   * A directory to resolve an npm specifier from when the process cwd
+   * cannot. The daemon passes its own directory, so the plugins it
+   * depends on load from any working directory.
+   */
+  resolveFrom?: string;
   /** Per-instance config from `config.yaml`. Validated against `factory.configSchema`. */
   config: unknown;
   /** Host-injected context. Build with `createPluginContext()`. */
@@ -84,7 +91,7 @@ export async function preparePlugin<T extends PluginLifecycle = PluginLifecycle>
   opts: Omit<LoadPluginOptions, 'initTimeoutMs'>,
 ): Promise<LoadedPlugin<T>> {
   const pkg = opts.package;
-  const { dir, mainPath } = await resolvePackage(pkg);
+  const { dir, mainPath } = await resolvePackage(pkg, opts.resolveFrom);
   const pkgJson = await readPackageJsonFromDir(dir);
   const manifest = pkgJson.framescout;
   if (!isPluginManifest(manifest)) {
@@ -167,15 +174,18 @@ interface ParsedPackageJson {
 
 async function resolvePackage(
   pkg: string,
+  resolveFrom?: string,
 ): Promise<{ dir: string; mainPath: string }> {
   if (isAbsolute(pkg)) {
     const pkgJson = await readPackageJsonFromDir(pkg);
     const main = pkgJson.main ?? './index.js';
     return { dir: pkg, mainPath: resolvePath(pkg, main) };
   }
-  // npm package specifier — resolve through Node's algorithm.
+  // npm package specifier — resolve through Node's algorithm, from the
+  // cwd first (plugins installed next to the config), then from the host.
   const require = createRequire(join(process.cwd(), 'package.json'));
-  const pkgJsonPath = require.resolve(`${pkg}/package.json`);
+  const paths = resolveFrom === undefined ? [process.cwd()] : [process.cwd(), resolveFrom];
+  const pkgJsonPath = require.resolve(`${pkg}/package.json`, { paths });
   const dir = pkgJsonPath.replace(/[/\\]package\.json$/u, '');
   const pkgJson = await readPackageJsonFromDir(dir);
   const main = pkgJson.main ?? './index.js';

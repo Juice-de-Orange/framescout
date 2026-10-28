@@ -181,6 +181,7 @@ async function assertReadable(path: string): Promise<void> {
   } catch (err) {
     throw new Error(
       `backbone path ${path} is not readable: ${err instanceof Error ? err.message : String(err)}`,
+      { cause: err },
     );
   }
 }

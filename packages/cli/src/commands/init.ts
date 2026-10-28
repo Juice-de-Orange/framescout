@@ -125,7 +125,6 @@ export async function cmdInit(
   });
   let megadetectorEndpoint = '';
   let deepfauneEndpoint = '';
-  let deepfauneNcAcknowledged = false;
   if (detectorPicks.includes(DETECTOR_MEGADETECTOR)) {
     megadetectorEndpoint = await prompter.input({
       message: 'MegaDetector HTTP endpoint:',
@@ -134,7 +133,7 @@ export async function cmdInit(
     });
   }
   if (detectorPicks.includes(DETECTOR_DEEPFAUNE)) {
-    deepfauneNcAcknowledged = await prompter.confirm({
+    const deepfauneNcAcknowledged = await prompter.confirm({
       message:
         'DeepFaune weights are CC BY-NC-SA 4.0 (non-commercial). Acknowledged?',
       default: false,

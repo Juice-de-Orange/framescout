@@ -3,7 +3,7 @@
 # calls it over HTTP. No torch — onnxruntime CPU only, so the image is
 # small.
 # Digest-pinned like the main Dockerfile.
-FROM python:3.12-slim@sha256:ec948fa5f90f4f8907e89f4800cfd2d2e91e391a4bce4a6afa77ba265bc3a2fe
+FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928
 
 # libgomp1 is onnxruntime's only system runtime dep.
 RUN apt-get update \

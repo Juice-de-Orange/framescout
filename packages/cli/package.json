@@ -37,8 +37,8 @@
     "@framescout/core": "workspace:^",
     "@framescout/detector-individual-embed": "workspace:^",
     "@framescout/plugin-api": "workspace:^",
-    "@inquirer/prompts": "^8.7.4",
-    "commander": "^15.0.0",
+    "@inquirer/prompts": "^8.7.5",
+    "commander": "^15.1.0",
     "ulid": "^2.3.0",
     "yaml": "^2.9.1",
     "zod-to-json-schema": "^3.23.5"
